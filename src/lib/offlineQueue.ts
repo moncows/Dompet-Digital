@@ -15,12 +15,14 @@ export async function enqueueTransactionMutation(item: TransactionQueueItem) {
   });
 }
 
-export async function listTransactionMutations() {
+export async function listTransactionMutations(userId: string) {
   const items = await withStore(STORE_NAMES.transactionQueue, 'readonly', async (store) => {
     return requestToPromise(store.getAll());
   });
 
-  return items.sort((left, right) => left.queuedAt.localeCompare(right.queuedAt));
+  return items
+    .filter((item) => item.userId === userId)
+    .sort((left, right) => left.queuedAt.localeCompare(right.queuedAt));
 }
 
 export async function updateTransactionMutation(item: TransactionQueueItem) {
@@ -35,14 +37,21 @@ export async function removeTransactionMutation(id: string) {
   });
 }
 
-export async function clearTransactionMutations() {
+export async function clearTransactionMutations(userId: string) {
   await withStore(STORE_NAMES.transactionQueue, 'readwrite', async (store) => {
-    await requestToPromise(store.clear());
+    const items = await requestToPromise(store.getAll());
+
+    await Promise.all(
+      items
+        .filter((item) => item.userId === userId)
+        .map((item) => requestToPromise(store.delete(item.id))),
+    );
   });
 }
 
-export async function getPendingTransactionCount() {
+export async function getPendingTransactionCount(userId: string) {
   return withStore(STORE_NAMES.transactionQueue, 'readonly', async (store) => {
-    return requestToPromise(store.count());
+    const items = await requestToPromise(store.getAll());
+    return items.filter((item) => item.userId === userId).length;
   });
 }

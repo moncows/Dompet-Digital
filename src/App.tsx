@@ -104,15 +104,18 @@ import {
 } from 'recharts';
 import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay } from 'date-fns';
 import { id } from 'date-fns/locale';
+import { useAuth } from './context/AuthContext';
 import { useOnlineStatus } from './hooks/useOnlineStatus';
 import { AppSnapshot, clearAppSnapshot, loadAppSnapshot, saveAppSnapshot } from './lib/appStorage';
+import { isFirebaseConfigured } from './lib/firebase';
+import { ensureUserProfileDocument, loadRemoteSnapshot, seedRemoteSnapshot, syncReferenceData } from './lib/firestoreStore';
 import {
   clearTransactionMutations,
   createQueueItemId,
   enqueueTransactionMutation,
   getPendingTransactionCount,
 } from './lib/offlineQueue';
-import { ACCESS_TOKEN_STORAGE_KEY, flushPendingTransactionMutations } from './lib/transactionSync';
+import { flushPendingTransactionMutations } from './lib/transactionSync';
 import { cn } from './lib/utils';
 import { ThemeMode, THEME_STORAGE_KEY, applyTheme, getInitialTheme } from './lib/theme';
 import { Wallet, Transaction, Category, TransactionType, TransactionMutationType } from './types';
@@ -134,13 +137,13 @@ const normalizeTransactions = (items: Transaction[]) => {
 };
 
 // --- MOCK DATA ---
-const INITIAL_WALLETS: Wallet[] = [
+const DEMO_WALLETS: Wallet[] = [
   { id: 'w1', name: 'Dompet Tunai', balance: 1500000, color: 'bg-emerald-500', icon: 'WalletIcon' },
   { id: 'w2', name: 'Rekening BCA', balance: 12500000, color: 'bg-blue-600', icon: 'Landmark' },
   { id: 'w3', name: 'GoPay', balance: 350000, color: 'bg-sky-500', icon: 'CreditCard' },
 ];
 
-const CATEGORIES: Category[] = [
+const DEMO_CATEGORIES: Category[] = [
   { id: 'c1', name: 'Gaji', type: 'income', icon: 'Briefcase', color: 'text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/30' },
   { id: 'c2', name: 'Bonus', type: 'income', icon: 'Gift', color: 'text-teal-600 dark:text-teal-400 bg-teal-100 dark:bg-teal-900/30' },
   { id: 'c3', name: 'Makanan', type: 'expense', icon: 'Coffee', color: 'text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/30' },
@@ -148,17 +151,65 @@ const CATEGORIES: Category[] = [
   { id: 'c5', name: 'Transportasi', type: 'expense', icon: 'Car', color: 'text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30' },
 ];
 
-const INITIAL_TRANSACTIONS: Transaction[] = [
+const DEMO_TRANSACTIONS: Transaction[] = [
   { id: 't1', type: 'income', amount: 10000000, categoryId: 'c1', walletId: 'w2', date: '2026-03-25T08:00:00Z', note: 'Gaji Bulan Maret' },
   { id: 't2', type: 'expense', amount: 50000, categoryId: 'c3', walletId: 'w3', date: '2026-03-24T12:30:00Z', note: 'Makan Siang Nasi Padang' },
   { id: 't3', type: 'expense', amount: 150000, categoryId: 'c4', walletId: 'w2', date: '2026-03-23T15:00:00Z', note: 'Belanja Bulanan Mini' },
   { id: 't4', type: 'transfer', amount: 500000, categoryId: '', walletId: 'w2', toWalletId: 'w3', date: '2026-03-22T09:00:00Z', note: 'Topup GoPay' },
 ];
 
+const LEGACY_DEMO_APP_SNAPSHOT: AppSnapshot = {
+  wallets: DEMO_WALLETS,
+  categories: DEMO_CATEGORIES,
+  transactions: normalizeTransactions(DEMO_TRANSACTIONS),
+};
+
+const STARTER_WALLETS: Wallet[] = [
+  { id: 'wallet-bank-abc', name: 'Bank ABC', balance: 0, color: 'bg-blue-600', icon: 'Landmark' },
+  { id: 'wallet-cash', name: 'Uang Tunai', balance: 0, color: 'bg-emerald-500', icon: 'WalletIcon' },
+];
+
+const STARTER_CATEGORIES: Category[] = [
+  { id: 'cat-income-gaji', name: 'Gaji', type: 'income', icon: 'Briefcase', color: 'text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/30' },
+  { id: 'cat-income-bonus', name: 'Bonus', type: 'income', icon: 'Gift', color: 'text-teal-600 dark:text-teal-400 bg-teal-100 dark:bg-teal-900/30' },
+  { id: 'cat-expense-makanan', name: 'Makanan', type: 'expense', icon: 'Coffee', color: 'text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/30' },
+  { id: 'cat-expense-transport', name: 'Transportasi', type: 'expense', icon: 'Car', color: 'text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30' },
+];
+
+const STARTER_APP_SNAPSHOT: AppSnapshot = {
+  wallets: STARTER_WALLETS,
+  categories: STARTER_CATEGORIES,
+  transactions: [],
+};
+
+const EMPTY_APP_SNAPSHOT: AppSnapshot = {
+  wallets: [],
+  categories: [],
+  transactions: [],
+};
+
 const DEFAULT_APP_SNAPSHOT: AppSnapshot = {
-  wallets: INITIAL_WALLETS,
-  categories: CATEGORIES,
-  transactions: normalizeTransactions(INITIAL_TRANSACTIONS),
+  wallets: STARTER_APP_SNAPSHOT.wallets,
+  categories: STARTER_APP_SNAPSHOT.categories,
+  transactions: STARTER_APP_SNAPSHOT.transactions,
+};
+
+const serializeSnapshot = (snapshot: AppSnapshot) => JSON.stringify({
+  wallets: snapshot.wallets,
+  categories: snapshot.categories,
+  transactions: normalizeTransactions(snapshot.transactions),
+});
+
+const isDefaultSnapshot = (snapshot: AppSnapshot) => {
+  return serializeSnapshot(snapshot) === serializeSnapshot(DEFAULT_APP_SNAPSHOT);
+};
+
+const isEmptySnapshot = (snapshot: AppSnapshot) => {
+  return serializeSnapshot(snapshot) === serializeSnapshot(EMPTY_APP_SNAPSHOT);
+};
+
+const isLegacyDemoSnapshot = (snapshot: AppSnapshot) => {
+  return serializeSnapshot(snapshot) === serializeSnapshot(LEGACY_DEMO_APP_SNAPSHOT);
 };
 
 // --- HELPER FUNCTIONS ---
@@ -208,13 +259,18 @@ function ThemeToggleButton({
 }
 
 export default function App() {
+  const { user, signOutUser } = useAuth();
   const [theme, setTheme] = useState<ThemeMode>(getInitialTheme);
   const isOnline = useOnlineStatus();
   const syncInFlightRef = React.useRef(false);
   const storageSaveQueueRef = React.useRef(Promise.resolve());
+  const referenceSyncQueueRef = React.useRef(Promise.resolve());
+  const hasBootstrappedRemoteRef = React.useRef(false);
   const [isStorageHydrated, setIsStorageHydrated] = useState(false);
+  const [isRemoteReady, setIsRemoteReady] = useState(false);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
   const [syncNotice, setSyncNotice] = useState<string | null>(null);
+  const [dismissedSyncBannerKey, setDismissedSyncBannerKey] = useState<string | null>(null);
   const [wallets, setWallets] = useState<Wallet[]>(DEFAULT_APP_SNAPSHOT.wallets);
   const [categories, setCategories] = useState<Category[]>(DEFAULT_APP_SNAPSHOT.categories);
   const [transactions, setTransactions] = useState<Transaction[]>(DEFAULT_APP_SNAPSHOT.transactions);
@@ -243,29 +299,51 @@ export default function App() {
 
   const [currentView, setCurrentView] = useState<'dashboard' | 'reports' | 'transactions' | 'categories' | 'wallets'>('dashboard');
   const [selectedWalletFilter, setSelectedWalletFilter] = useState<string | null>(null);
+  const userId = user?.uid ?? '';
+  const userLabel = user?.displayName?.trim() || user?.email?.split('@')[0] || 'User';
+  const userInitial = userLabel.charAt(0).toUpperCase();
 
   // --- PERSISTENCE ---
   React.useEffect(() => {
+    if (!userId) {
+      return;
+    }
+
     let isCancelled = false;
+    hasBootstrappedRemoteRef.current = false;
+    setIsStorageHydrated(false);
+    setIsRemoteReady(false);
 
     const bootstrapLocalState = async () => {
       try {
         const [snapshot, queuedMutationsCount] = await Promise.all([
-          loadAppSnapshot(DEFAULT_APP_SNAPSHOT),
-          getPendingTransactionCount(),
+          loadAppSnapshot(userId, DEFAULT_APP_SNAPSHOT),
+          getPendingTransactionCount(userId),
         ]);
+
+        const shouldUpgradeToStarterSeed = queuedMutationsCount === 0 && (isLegacyDemoSnapshot(snapshot) || isEmptySnapshot(snapshot));
+        const resolvedSnapshot = shouldUpgradeToStarterSeed
+          ? DEFAULT_APP_SNAPSHOT
+          : snapshot;
+
+        if (shouldUpgradeToStarterSeed) {
+          await saveAppSnapshot(userId, DEFAULT_APP_SNAPSHOT);
+        }
 
         if (isCancelled) {
           return;
         }
 
-        setWallets(snapshot.wallets);
-        setCategories(snapshot.categories);
-        setTransactions(normalizeTransactions(snapshot.transactions));
+        setWallets(resolvedSnapshot.wallets);
+        setCategories(resolvedSnapshot.categories);
+        setTransactions(normalizeTransactions(resolvedSnapshot.transactions));
         setPendingSyncCount(queuedMutationsCount);
       } catch {
         if (!isCancelled) {
           setSyncNotice('Gagal memuat IndexedDB. Data default dipakai sementara.');
+          setWallets(DEFAULT_APP_SNAPSHOT.wallets);
+          setCategories(DEFAULT_APP_SNAPSHOT.categories);
+          setTransactions(DEFAULT_APP_SNAPSHOT.transactions);
           setPendingSyncCount(0);
         }
       } finally {
@@ -280,10 +358,100 @@ export default function App() {
     return () => {
       isCancelled = true;
     };
-  }, []);
+  }, [userId]);
 
   React.useEffect(() => {
-    if (!isStorageHydrated) {
+    if (!user || !userId || !isStorageHydrated || !isOnline || !isFirebaseConfigured() || hasBootstrappedRemoteRef.current) {
+      return;
+    }
+
+    let isCancelled = false;
+    hasBootstrappedRemoteRef.current = true;
+
+    const bootstrapRemoteState = async () => {
+      try {
+        await ensureUserProfileDocument(user);
+
+        const remoteSnapshot = await loadRemoteSnapshot(userId);
+        if (isCancelled) {
+          return;
+        }
+
+        const localSnapshot: AppSnapshot = { wallets, categories, transactions };
+        const pendingCount = await getPendingTransactionCount(userId);
+        const normalizedRemoteSnapshot = remoteSnapshot
+          ? {
+            wallets: remoteSnapshot.wallets,
+            categories: remoteSnapshot.categories,
+            transactions: normalizeTransactions(remoteSnapshot.transactions),
+          }
+          : null;
+
+        if (!remoteSnapshot) {
+          await seedRemoteSnapshot(userId, localSnapshot);
+          if (!isCancelled) {
+            setSyncNotice('Data lokal pertama berhasil dicadangkan ke Firestore.');
+          }
+          return;
+        }
+
+        if (pendingCount === 0 && normalizedRemoteSnapshot && (isLegacyDemoSnapshot(normalizedRemoteSnapshot) || isEmptySnapshot(normalizedRemoteSnapshot))) {
+          setWallets(DEFAULT_APP_SNAPSHOT.wallets);
+          setCategories(DEFAULT_APP_SNAPSHOT.categories);
+          setTransactions(DEFAULT_APP_SNAPSHOT.transactions);
+          await saveAppSnapshot(userId, DEFAULT_APP_SNAPSHOT);
+          await seedRemoteSnapshot(userId, DEFAULT_APP_SNAPSHOT);
+
+          if (!isCancelled) {
+            setSyncNotice('Data awal otomatis berhasil disiapkan untuk akun ini.');
+          }
+          return;
+        }
+
+        if (pendingCount === 0 && normalizedRemoteSnapshot && isDefaultSnapshot(localSnapshot)) {
+          setWallets(normalizedRemoteSnapshot.wallets);
+          setCategories(normalizedRemoteSnapshot.categories);
+          setTransactions(normalizedRemoteSnapshot.transactions);
+          await saveAppSnapshot(userId, normalizedRemoteSnapshot);
+
+          if (!isCancelled) {
+            setSyncNotice('Snapshot Firestore berhasil dimuat ke perangkat ini.');
+          }
+          return;
+        }
+
+        if (pendingCount === 0) {
+          await seedRemoteSnapshot(userId, localSnapshot);
+          if (!isCancelled) {
+            setSyncNotice('Snapshot lokal berhasil diperbarui ke Firestore.');
+          }
+          return;
+        }
+
+        await syncReferenceData(userId, {
+          wallets: localSnapshot.wallets,
+          categories: localSnapshot.categories,
+        });
+      } catch {
+        if (!isCancelled) {
+          setSyncNotice('Gagal menyambungkan Firestore. Aplikasi tetap memakai data lokal.');
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsRemoteReady(true);
+        }
+      }
+    };
+
+    void bootstrapRemoteState();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [user, userId, isStorageHydrated, isOnline, wallets, categories, transactions]);
+
+  React.useEffect(() => {
+    if (!isStorageHydrated || !userId) {
       return;
     }
 
@@ -295,19 +463,60 @@ export default function App() {
 
     storageSaveQueueRef.current = storageSaveQueueRef.current
       .catch(() => undefined)
-      .then(() => saveAppSnapshot(snapshotToPersist))
+      .then(() => saveAppSnapshot(userId, snapshotToPersist))
       .catch(() => {
         setSyncNotice('Gagal menyimpan perubahan ke IndexedDB.');
       });
-  }, [wallets, categories, transactions, isStorageHydrated]);
+  }, [wallets, categories, transactions, isStorageHydrated, userId]);
+
+  React.useEffect(() => {
+    if (!userId || !isStorageHydrated || !isOnline || !isFirebaseConfigured() || !isRemoteReady) {
+      return;
+    }
+
+    referenceSyncQueueRef.current = referenceSyncQueueRef.current
+      .catch(() => undefined)
+      .then(() => syncReferenceData(userId, { wallets, categories }))
+      .catch(() => {
+        setSyncNotice('Perubahan dompet atau kategori belum bisa dikirim ke Firestore.');
+      });
+  }, [wallets, categories, userId, isStorageHydrated, isOnline, isRemoteReady]);
 
   React.useEffect(() => {
     localStorage.setItem(THEME_STORAGE_KEY, theme);
     applyTheme(theme);
   }, [theme]);
 
+  React.useEffect(() => {
+    if (!syncNotice) {
+      return;
+    }
+
+    const isPersistentNotice =
+      syncNotice.startsWith('Gagal') ||
+      syncNotice.startsWith('Mode offline aktif') ||
+      syncNotice.includes('belum bisa');
+
+    if (isPersistentNotice) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setSyncNotice((currentNotice) => (currentNotice === syncNotice ? null : currentNotice));
+    }, 5000);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [syncNotice]);
+
   const refreshPendingSyncCount = async () => {
-    setPendingSyncCount(await getPendingTransactionCount());
+    if (!userId) {
+      setPendingSyncCount(0);
+      return;
+    }
+
+    setPendingSyncCount(await getPendingTransactionCount(userId));
   };
 
   const updateTransactionSyncState = (transactionId: string, syncStatus: Transaction['syncStatus'], syncError?: string) => {
@@ -325,7 +534,7 @@ export default function App() {
   };
 
   const syncPendingTransactions = async () => {
-    if (!isOnline || syncInFlightRef.current) {
+    if (!userId || !isOnline || syncInFlightRef.current) {
       return;
     }
 
@@ -334,7 +543,7 @@ export default function App() {
 
     try {
       const result = await flushPendingTransactionMutations({
-        token: localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY) ?? undefined,
+        userId,
         onSuccess: (item) => {
           updateTransactionSyncState(item.transactionId, 'synced');
         },
@@ -352,7 +561,7 @@ export default function App() {
       } else if (result.reason === 'empty') {
         setSyncNotice(null);
       } else if (result.failedCount > 0) {
-        setSyncNotice('Sebagian perubahan belum bisa dikirim ke server.');
+        setSyncNotice('Sebagian perubahan belum bisa dikirim ke Firestore.');
       } else {
         setSyncNotice(null);
       }
@@ -362,8 +571,12 @@ export default function App() {
   };
 
   React.useEffect(() => {
+    if (!userId) {
+      return;
+    }
+
     if (!isOnline) {
-      setSyncNotice('Mode offline aktif. Perubahan baru akan masuk antrean sinkronisasi.');
+      setSyncNotice('Mode offline aktif. Perubahan baru akan masuk antrean sinkronisasi Firebase.');
       return;
     }
 
@@ -375,11 +588,16 @@ export default function App() {
     if (syncNotice?.startsWith('Mode offline aktif')) {
       setSyncNotice(null);
     }
-  }, [isOnline, pendingSyncCount]);
+  }, [isOnline, pendingSyncCount, userId]);
 
   const queueTransactionChange = async (operation: TransactionMutationType, transaction: Transaction) => {
+    if (!userId) {
+      return;
+    }
+
     await enqueueTransactionMutation({
       id: createQueueItemId(),
+      userId,
       transactionId: transaction.clientId ?? transaction.id,
       operation,
       transaction,
@@ -419,10 +637,19 @@ export default function App() {
 
   // --- HANDLERS ---
   const handleResetData = async () => {
+    if (!userId) {
+      return;
+    }
+
     await storageSaveQueueRef.current.catch(() => undefined);
-    await clearAppSnapshot();
-    await clearTransactionMutations();
-    await saveAppSnapshot(DEFAULT_APP_SNAPSHOT);
+    await clearAppSnapshot(userId);
+    await clearTransactionMutations(userId);
+    await saveAppSnapshot(userId, DEFAULT_APP_SNAPSHOT);
+
+    if (isOnline && isFirebaseConfigured()) {
+      await seedRemoteSnapshot(userId, DEFAULT_APP_SNAPSHOT);
+    }
+
     setWallets(DEFAULT_APP_SNAPSHOT.wallets);
     setTransactions(DEFAULT_APP_SNAPSHOT.transactions);
     setCategories(DEFAULT_APP_SNAPSHOT.categories);
@@ -611,27 +838,37 @@ export default function App() {
   const toggleTheme = () => {
     setTheme(prevTheme => prevTheme === 'dark' ? 'light' : 'dark');
   };
-  const hasBackendSyncConfigured = Boolean(import.meta.env.VITE_API_BASE_URL?.trim());
+  const hasCloudSyncConfigured = isFirebaseConfigured();
   const syncBanner = !isOnline
     ? {
-      text: 'Offline mode aktif. Transaksi baru disimpan lokal dan akan dikirim saat koneksi kembali.',
+      key: 'offline',
+      text: 'Offline mode aktif. Transaksi baru disimpan lokal dan akan dikirim ke Firebase saat koneksi kembali.',
       className: 'bg-amber-500 text-white',
     }
     : pendingSyncCount > 0
       ? {
-        text: hasBackendSyncConfigured
+        key: hasCloudSyncConfigured
+          ? `pending:${pendingSyncCount}:${syncInFlightRef.current ? 'syncing' : 'queued'}`
+          : `pending-local:${pendingSyncCount}`,
+        text: hasCloudSyncConfigured
           ? syncInFlightRef.current
-            ? `Menyinkronkan ${pendingSyncCount} perubahan ke server...`
-            : `${pendingSyncCount} perubahan menunggu sinkronisasi ke server.`
-          : `${pendingSyncCount} perubahan aman di perangkat, tetapi backend API belum dikonfigurasi.`,
-        className: hasBackendSyncConfigured ? 'bg-slate-900 text-white' : 'bg-sky-600 text-white',
+            ? `Menyinkronkan ${pendingSyncCount} perubahan ke Firestore...`
+            : `${pendingSyncCount} perubahan menunggu sinkronisasi ke Firestore.`
+          : `${pendingSyncCount} perubahan aman di perangkat, tetapi Firebase belum dikonfigurasi.`,
+        className: hasCloudSyncConfigured ? 'bg-slate-900 text-white' : 'bg-sky-600 text-white',
       }
       : syncNotice
         ? {
+          key: `notice:${syncNotice}`,
           text: syncNotice,
           className: syncNotice.includes('berhasil') ? 'bg-emerald-600 text-white' : 'bg-slate-900 text-white',
         }
         : null;
+  const visibleSyncBanner = syncBanner && dismissedSyncBannerKey !== syncBanner.key ? syncBanner : null;
+
+  React.useEffect(() => {
+    setDismissedSyncBannerKey(null);
+  }, [isOnline, pendingSyncCount, syncNotice]);
 
   if (!isStorageHydrated) {
     return (
@@ -651,10 +888,20 @@ export default function App() {
 
   return (
     <div className="h-screen w-full bg-gray-50 dark:bg-slate-950 overflow-hidden font-sans text-gray-900 dark:text-slate-100">
-      {syncBanner && (
+      {visibleSyncBanner && (
         <div className="fixed left-1/2 top-4 z-[80] w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 px-4">
-          <div className={cn('rounded-2xl px-4 py-3 text-sm font-medium shadow-lg backdrop-blur-sm', syncBanner.className)}>
-            {syncBanner.text}
+          <div className={cn('rounded-2xl px-4 py-3 text-sm font-medium shadow-lg backdrop-blur-sm flex items-start gap-3', visibleSyncBanner.className)}>
+            <div className="flex-1 pr-1">
+              {visibleSyncBanner.text}
+            </div>
+            <button
+              type="button"
+              onClick={() => setDismissedSyncBannerKey(visibleSyncBanner.key)}
+              aria-label="Tutup notifikasi sinkronisasi"
+              className="shrink-0 rounded-lg p-1 text-white/90 hover:text-white hover:bg-white/10 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
         </div>
       )}
@@ -667,7 +914,7 @@ export default function App() {
         <div className="bg-blue-600 pt-12 pb-16 px-6 rounded-b-[2.5rem] shrink-0 shadow-md">
           <div className="flex justify-between items-center mb-6">
             <div className="w-10 h-10 rounded-full bg-white/20 dark:bg-gray-900/20 flex items-center justify-center text-white font-bold border border-white/30 backdrop-blur-sm">
-              U
+              {userInitial}
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -704,6 +951,17 @@ export default function App() {
                     >
                       <Trash2 className="w-4 h-4" />
                       Reset Database
+                    </button>
+                    <button
+                      onClick={async (event) => {
+                        event.stopPropagation();
+                        setShowSettings(false);
+                        await signOutUser();
+                      }}
+                      className="w-full px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-2"
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                      Keluar
                     </button>
                   </div>
                 )}
@@ -940,7 +1198,7 @@ export default function App() {
                   onClick={() => setShowSettings(!showSettings)}
                   className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold border border-blue-200 dark:border-blue-800 hover:bg-blue-200 dark:hover:bg-blue-800/50 transition-colors"
                 >
-                  U
+                  {userInitial}
                 </button>
                 {showSettings && (
                   <div className="absolute top-10 right-0 w-48 bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-gray-100 dark:border-gray-800 py-1 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
@@ -957,6 +1215,16 @@ export default function App() {
                     >
                       <Trash2 className="w-4 h-4" />
                       Reset Database
+                    </button>
+                    <button
+                      onClick={async () => {
+                        setShowSettings(false);
+                        await signOutUser();
+                      }}
+                      className="w-full px-4 py-2.5 text-left text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-2"
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                      Keluar
                     </button>
                   </div>
                 )}

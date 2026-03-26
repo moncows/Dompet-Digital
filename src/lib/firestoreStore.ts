@@ -1,0 +1,184 @@
+import { User } from 'firebase/auth';
+import {
+  Timestamp,
+  collection,
+  deleteDoc,
+  doc,
+  getDocs,
+  orderBy,
+  query,
+  serverTimestamp,
+  setDoc,
+  writeBatch,
+} from 'firebase/firestore';
+import { Category, Transaction, Wallet } from '../types';
+import { AppSnapshot } from './appStorage';
+import { getFirestoreInstance } from './firebase';
+
+type WalletDocument = Wallet & {
+  updatedAt?: Timestamp;
+};
+
+type CategoryDocument = Category & {
+  updatedAt?: Timestamp;
+};
+
+type TransactionDocument = Transaction & {
+  updatedAt?: Timestamp;
+};
+
+const USER_COLLECTION = 'users';
+
+function getUserDocumentRef(userId: string) {
+  const firestore = getFirestoreInstance();
+  if (!firestore) {
+    throw new Error('Firestore belum dikonfigurasi.');
+  }
+
+  return doc(firestore, USER_COLLECTION, userId);
+}
+
+function getWalletsCollection(userId: string) {
+  return collection(getUserDocumentRef(userId), 'wallets');
+}
+
+function getCategoriesCollection(userId: string) {
+  return collection(getUserDocumentRef(userId), 'categories');
+}
+
+function getTransactionsCollection(userId: string) {
+  return collection(getUserDocumentRef(userId), 'transactions');
+}
+
+async function replaceCollection<T extends { id: string }>(
+  userId: string,
+  collectionName: 'wallets' | 'categories' | 'transactions',
+  items: T[],
+  serializeItem?: (item: T) => Record<string, unknown>,
+) {
+  const firestore = getFirestoreInstance();
+  if (!firestore) {
+    throw new Error('Firestore belum dikonfigurasi.');
+  }
+
+  const collectionRef = collection(getUserDocumentRef(userId), collectionName);
+  const snapshot = await getDocs(collectionRef);
+  const nextIds = new Set(items.map((item) => item.id));
+  const batch = writeBatch(firestore);
+
+  items.forEach((item) => {
+    batch.set(doc(collectionRef, item.id), {
+      ...(serializeItem ? serializeItem(item) : item),
+      updatedAt: serverTimestamp(),
+    });
+  });
+
+  snapshot.docs.forEach((documentSnapshot) => {
+    if (!nextIds.has(documentSnapshot.id)) {
+      batch.delete(documentSnapshot.ref);
+    }
+  });
+
+  await batch.commit();
+}
+
+function serializeTransaction(transaction: Transaction) {
+  return {
+    id: transaction.id,
+    type: transaction.type,
+    amount: transaction.amount,
+    categoryId: transaction.categoryId,
+    walletId: transaction.walletId,
+    toWalletId: transaction.toWalletId ?? null,
+    date: transaction.date,
+    note: transaction.note,
+    status: transaction.status ?? 'completed',
+    clientId: transaction.clientId ?? transaction.id,
+  };
+}
+
+export async function ensureUserProfileDocument(user: User) {
+  await setDoc(
+    getUserDocumentRef(user.uid),
+    {
+      email: user.email ?? null,
+      displayName: user.displayName ?? null,
+      updatedAt: serverTimestamp(),
+      lastLoginAt: serverTimestamp(),
+      createdAt: serverTimestamp(),
+    },
+    { merge: true },
+  );
+}
+
+export async function loadRemoteSnapshot(userId: string): Promise<AppSnapshot | null> {
+  const [walletsSnapshot, categoriesSnapshot, transactionsSnapshot] = await Promise.all([
+    getDocs(query(getWalletsCollection(userId), orderBy('name'))),
+    getDocs(query(getCategoriesCollection(userId), orderBy('name'))),
+    getDocs(query(getTransactionsCollection(userId), orderBy('date', 'desc'))),
+  ]);
+
+  if (
+    walletsSnapshot.empty &&
+    categoriesSnapshot.empty &&
+    transactionsSnapshot.empty
+  ) {
+    return null;
+  }
+
+  return {
+    wallets: walletsSnapshot.docs.map((documentSnapshot) => {
+      const data = documentSnapshot.data() as WalletDocument;
+      return {
+        id: documentSnapshot.id,
+        name: data.name,
+        balance: data.balance,
+        color: data.color,
+        icon: data.icon,
+      };
+    }),
+    categories: categoriesSnapshot.docs.map((documentSnapshot) => {
+      const data = documentSnapshot.data() as CategoryDocument;
+      return {
+        id: documentSnapshot.id,
+        name: data.name,
+        type: data.type,
+        icon: data.icon,
+        color: data.color,
+      };
+    }),
+    transactions: transactionsSnapshot.docs.map((documentSnapshot) => {
+      const data = documentSnapshot.data() as TransactionDocument;
+      return {
+        ...data,
+        id: documentSnapshot.id,
+      };
+    }),
+  };
+}
+
+export async function seedRemoteSnapshot(userId: string, snapshot: AppSnapshot) {
+  await Promise.all([
+    replaceCollection(userId, 'wallets', snapshot.wallets),
+    replaceCollection(userId, 'categories', snapshot.categories),
+    replaceCollection(userId, 'transactions', snapshot.transactions, serializeTransaction),
+  ]);
+}
+
+export async function syncReferenceData(userId: string, data: Pick<AppSnapshot, 'wallets' | 'categories'>) {
+  await Promise.all([
+    replaceCollection(userId, 'wallets', data.wallets),
+    replaceCollection(userId, 'categories', data.categories),
+  ]);
+}
+
+export async function upsertTransactionDocument(userId: string, transaction: Transaction) {
+  await setDoc(doc(getTransactionsCollection(userId), transaction.clientId ?? transaction.id), {
+    ...serializeTransaction(transaction),
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function deleteTransactionDocument(userId: string, transactionId: string) {
+  await deleteDoc(doc(getTransactionsCollection(userId), transactionId));
+}

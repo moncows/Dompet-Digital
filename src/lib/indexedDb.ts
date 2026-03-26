@@ -1,5 +1,5 @@
 export const DB_NAME = 'dompetku-offline-db';
-export const DB_VERSION = 2;
+export const DB_VERSION = 3;
 
 export const STORE_NAMES = {
   appSnapshot: 'app_snapshot',
@@ -39,6 +39,12 @@ async function openDatabase() {
         const store = database.createObjectStore(STORE_NAMES.transactionQueue, { keyPath: 'id' });
         store.createIndex('queuedAt', 'queuedAt', { unique: false });
         store.createIndex('transactionId', 'transactionId', { unique: false });
+        store.createIndex('userId', 'userId', { unique: false });
+      } else {
+        const store = request.transaction?.objectStore(STORE_NAMES.transactionQueue);
+        if (store && !store.indexNames.contains('userId')) {
+          store.createIndex('userId', 'userId', { unique: false });
+        }
       }
     };
 

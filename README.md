@@ -4,9 +4,9 @@ Frontend mobile-first untuk aplikasi kas berbasis React + Vite yang disiapkan me
 
 - React SPA + Vite
 - PWA dengan `vite-plugin-pwa`
+- Firebase Authentication
+- Cloud Firestore
 - Offline queue berbasis IndexedDB
-- Backend stateless CodeIgniter REST API
-- PostgreSQL
 
 ## Status Saat Ini
 
@@ -14,20 +14,24 @@ Repo ini sekarang sudah punya fondasi awal untuk:
 
 - installable PWA
 - app shell caching melalui Workbox
-- penyimpanan master data di IndexedDB
+- login email/password via Firebase Auth
+- penyimpanan master data di IndexedDB per user
+- bootstrap snapshot awal dari Firestore ke perangkat
 - antrean sinkronisasi transaksi saat offline
 - sinkronisasi ulang otomatis saat koneksi kembali
 
 Yang belum aktif penuh:
 
-- backend CodeIgniter API
-- JWT login
-- endpoint sinkronisasi transaksi yang benar-benar hidup
+- Cloud Functions untuk alur idempotency yang lebih ketat
+- App Check
+- FCM / push notification
+- skema Firestore yang lebih granular untuk reporting lanjutan
 
 ## Prasyarat
 
 - Node.js 20 LTS atau lebih baru
 - npm
+- project Firebase aktif
 
 ## Jalankan Lokal
 
@@ -43,21 +47,37 @@ Yang belum aktif penuh:
    cp .env.example .env.local
    ```
 
-3. Isi `VITE_API_BASE_URL` dengan root API CodeIgniter kamu.
+3. Isi variabel Firebase dari Firebase Console.
 
    Contoh:
 
    ```env
-   VITE_API_BASE_URL="http://localhost/app-kas-api/public/api"
+   VITE_FIREBASE_API_KEY="..."
+   VITE_FIREBASE_AUTH_DOMAIN="your-project.firebaseapp.com"
+   VITE_FIREBASE_PROJECT_ID="your-project-id"
+   VITE_FIREBASE_STORAGE_BUCKET="your-project.firebasestorage.app"
+   VITE_FIREBASE_MESSAGING_SENDER_ID="..."
+   VITE_FIREBASE_APP_ID="..."
    ```
 
-4. Jalankan development server:
+4. Di Firebase Console, aktifkan:
+
+   - Authentication > Sign-in method > Email/Password
+   - Firestore Database
+
+5. Deploy rules Firestore dari repo ini:
+
+   ```bash
+   firebase deploy --only firestore:rules,firestore:indexes
+   ```
+
+6. Jalankan development server:
 
    ```bash
    npm run dev
    ```
 
-5. Buka [http://localhost:3000](http://localhost:3000)
+7. Buka [http://localhost:3000](http://localhost:3000)
 
 ## Build Production
 
@@ -67,26 +87,27 @@ npm run build
 
 ## Catatan Offline Sync
 
-- Snapshot utama `wallets`, `categories`, dan `transactions` sekarang disimpan di IndexedDB.
-- `localStorage` hanya dipertahankan untuk hal ringan seperti tema dan token.
+- Snapshot utama `wallets`, `categories`, dan `transactions` disimpan di IndexedDB per user.
+- `localStorage` dipertahankan untuk hal ringan seperti tema.
 - Saat user menambah, mengubah, atau membatalkan transaksi, perubahan langsung diterapkan ke UI lokal.
 - Perubahan itu juga dimasukkan ke antrean IndexedDB.
 - Jika device offline, antrean tetap aman di browser.
-- Saat koneksi kembali, frontend mencoba mengirim antrean ke API.
+- Saat koneksi kembali, frontend mencoba mengirim antrean ke Firestore.
+- Sinkronisasi `wallets` dan `categories` dilakukan sebagai snapshot referensi saat user online.
 
-## Endpoint Backend yang Diasumsikan
+## File Firebase yang Perlu Diperhatikan
 
-Frontend saat ini menarget pola endpoint berikut:
-
-- `POST /transactions`
-- `PUT /transactions/:id`
-- `PATCH /transactions/:id/cancel`
-
-Base URL endpoint diambil dari `VITE_API_BASE_URL`.
+- `firestore.rules`
+- `firestore.indexes.json`
+- `.env.local`
+- `src/context/AuthContext.tsx`
+- `src/lib/firebase.ts`
+- `src/lib/firestoreStore.ts`
+- `src/lib/transactionSync.ts`
 
 ## Langkah Lanjut yang Disarankan
 
-1. Siapkan CodeIgniter API + JWT.
-2. Pastikan setiap transaksi menerima `client_id` dari frontend untuk idempotency.
-3. Tambahkan user session/auth storage yang aman.
-4. Pisahkan snapshot master data, cache API, dan queue sinkronisasi ke store IndexedDB yang berbeda jika domain data mulai besar.
+1. Pindahkan mutasi transaksi sensitif ke Cloud Functions agar idempotency dan validasi saldo lebih kuat.
+2. Tambahkan App Check sebelum production.
+3. Pisahkan store IndexedDB menjadi domain yang lebih granular jika transaksi sudah besar.
+4. Tambahkan sinkronisasi pull Firestore yang lebih cerdas untuk multi-device conflict handling.

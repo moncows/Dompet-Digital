@@ -86,23 +86,6 @@ export default defineConfig({
               },
             },
           },
-          {
-            urlPattern: ({url, request}) =>
-              request.method === 'GET' &&
-              (url.pathname.includes('/api/') || url.pathname.includes('/transactions')),
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'api-get-cache',
-              networkTimeoutSeconds: 8,
-              cacheableResponse: {
-                statuses: [0, 200],
-              },
-              expiration: {
-                maxEntries: 80,
-                maxAgeSeconds: 60 * 5,
-              },
-            },
-          },
         ],
       },
       devOptions: {

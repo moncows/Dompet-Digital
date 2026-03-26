@@ -1,109 +1,22 @@
-import { Transaction, TransactionMutationType, TransactionQueueItem } from '../types';
+import { TransactionQueueItem } from '../types';
 import {
   listTransactionMutations,
   removeTransactionMutation,
   updateTransactionMutation,
 } from './offlineQueue';
+import { isFirebaseConfigured } from './firebase';
+import { upsertTransactionDocument } from './firestoreStore';
 
-export const ACCESS_TOKEN_STORAGE_KEY = 'dompetku_access_token';
-
-const REQUEST_TIMEOUT_MS = 10_000;
-
-function getApiBaseUrl() {
-  const baseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
-  if (!baseUrl) {
-    return null;
+async function sendTransactionMutation(item: TransactionQueueItem) {
+  if (!isFirebaseConfigured()) {
+    throw new Error('Firebase belum dikonfigurasi.');
   }
 
-  return baseUrl.replace(/\/$/, '');
-}
-
-function createAbortSignal(timeoutMs: number) {
-  const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
-
-  return {
-    signal: controller.signal,
-    cleanup: () => window.clearTimeout(timeoutId),
-  };
-}
-
-function buildHeaders(token?: string) {
-  const headers = new Headers({
-    'Content-Type': 'application/json',
-    Accept: 'application/json',
-  });
-
-  if (token) {
-    headers.set('Authorization', `Bearer ${token}`);
-  }
-
-  return headers;
-}
-
-function createPayload(transaction: Transaction) {
-  return {
-    client_id: transaction.clientId ?? transaction.id,
-    type: transaction.type,
-    amount: transaction.amount,
-    category_id: transaction.categoryId || null,
-    wallet_id: transaction.walletId,
-    to_wallet_id: transaction.toWalletId ?? null,
-    date: transaction.date,
-    note: transaction.note,
-    status: transaction.status ?? 'completed',
-  };
-}
-
-async function sendTransactionMutation(item: TransactionQueueItem, token?: string) {
-  const apiBaseUrl = getApiBaseUrl();
-  if (!apiBaseUrl) {
-    throw new Error('VITE_API_BASE_URL belum diatur.');
-  }
-
-  const transactionId = encodeURIComponent(item.transactionId);
-  const syncPrefix = import.meta.env.VITE_API_SYNC_PREFIX?.trim() || '/transactions';
-  const resourceBase = `${apiBaseUrl}${syncPrefix.startsWith('/') ? syncPrefix : `/${syncPrefix}`}`;
-
-  const endpointByOperation: Record<TransactionMutationType, string> = {
-    create: resourceBase,
-    update: `${resourceBase}/${transactionId}`,
-    cancel: `${resourceBase}/${transactionId}/cancel`,
-  };
-
-  const methodByOperation: Record<TransactionMutationType, string> = {
-    create: 'POST',
-    update: 'PUT',
-    cancel: 'PATCH',
-  };
-
-  const { signal, cleanup } = createAbortSignal(REQUEST_TIMEOUT_MS);
-
-  try {
-    const response = await fetch(endpointByOperation[item.operation], {
-      method: methodByOperation[item.operation],
-      headers: buildHeaders(token),
-      body: JSON.stringify(createPayload(item.transaction)),
-      signal,
-    });
-
-    if (!response.ok) {
-      const message = await response.text();
-      throw new Error(message || `HTTP ${response.status}`);
-    }
-
-    if (response.status === 204) {
-      return null;
-    }
-
-    return response.json().catch(() => null);
-  } finally {
-    cleanup();
-  }
+  await upsertTransactionDocument(item.userId, item.transaction);
 }
 
 export async function flushPendingTransactionMutations(options?: {
-  token?: string;
+  userId: string;
   onSuccess?: (item: TransactionQueueItem) => void;
   onFailure?: (item: TransactionQueueItem, errorMessage: string) => void;
 }) {
@@ -116,7 +29,16 @@ export async function flushPendingTransactionMutations(options?: {
     };
   }
 
-  const items = await listTransactionMutations();
+  if (!options?.userId) {
+    return {
+      syncedCount: 0,
+      failedCount: 0,
+      skipped: true,
+      reason: 'unauthenticated',
+    };
+  }
+
+  const items = await listTransactionMutations(options.userId);
   if (items.length === 0) {
     return {
       syncedCount: 0,
@@ -131,7 +53,7 @@ export async function flushPendingTransactionMutations(options?: {
 
   for (const item of items) {
     try {
-      await sendTransactionMutation(item, options?.token);
+      await sendTransactionMutation(item);
       await removeTransactionMutation(item.id);
       syncedCount += 1;
       options?.onSuccess?.(item);
@@ -148,11 +70,11 @@ export async function flushPendingTransactionMutations(options?: {
 
       options?.onFailure?.(item, errorMessage);
 
-      if (errorMessage.includes('VITE_API_BASE_URL') || errorMessage.includes('HTTP 401')) {
+      if (errorMessage.includes('Firebase belum dikonfigurasi.')) {
         break;
       }
 
-      if (error instanceof TypeError || errorMessage.includes('Failed to fetch') || errorMessage.includes('abort')) {
+      if (error instanceof TypeError || errorMessage.includes('Failed to fetch')) {
         break;
       }
     }

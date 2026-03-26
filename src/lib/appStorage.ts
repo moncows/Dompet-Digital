@@ -10,7 +10,7 @@ const LEGACY_STORAGE_KEYS = {
 type SnapshotKey = keyof typeof LEGACY_STORAGE_KEYS;
 
 type SnapshotRecord<T> = {
-  key: SnapshotKey;
+  key: string;
   value: T;
   updatedAt: string;
 };
@@ -30,9 +30,13 @@ function readLegacyLocalValue<T>(key: string) {
   }
 }
 
-async function getSnapshotRecord<T>(key: SnapshotKey) {
+function createScopedSnapshotKey(userId: string, key: SnapshotKey) {
+  return `${userId}:${key}`;
+}
+
+async function getSnapshotRecord<T>(userId: string, key: SnapshotKey) {
   return withStore<SnapshotRecord<T> | undefined>(STORE_NAMES.appSnapshot, 'readonly', async (store) => {
-    const record = await requestToPromise(store.get(key));
+    const record = await requestToPromise(store.get(createScopedSnapshotKey(userId, key)));
     return record as SnapshotRecord<T> | undefined;
   });
 }
@@ -59,11 +63,11 @@ function getLegacyAppSnapshot(defaults: AppSnapshot) {
   };
 }
 
-export async function loadAppSnapshot(defaults: AppSnapshot) {
+export async function loadAppSnapshot(userId: string, defaults: AppSnapshot) {
   const [walletsRecord, categoriesRecord, transactionsRecord] = await Promise.all([
-    getSnapshotRecord<Wallet[]>('wallets'),
-    getSnapshotRecord<Category[]>('categories'),
-    getSnapshotRecord<Transaction[]>('transactions'),
+    getSnapshotRecord<Wallet[]>(userId, 'wallets'),
+    getSnapshotRecord<Category[]>(userId, 'categories'),
+    getSnapshotRecord<Transaction[]>(userId, 'transactions'),
   ]);
 
   if (walletsRecord || categoriesRecord || transactionsRecord) {
@@ -77,40 +81,44 @@ export async function loadAppSnapshot(defaults: AppSnapshot) {
 
   const legacySnapshot = getLegacyAppSnapshot(defaults);
   if (legacySnapshot) {
-    await saveAppSnapshot(legacySnapshot);
+    await saveAppSnapshot(userId, legacySnapshot);
     clearLegacyAppSnapshot();
     return legacySnapshot;
   }
 
-  await saveAppSnapshot(defaults);
+  await saveAppSnapshot(userId, defaults);
   return defaults;
 }
 
-export async function saveAppSnapshot(snapshot: AppSnapshot) {
+export async function saveAppSnapshot(userId: string, snapshot: AppSnapshot) {
   const updatedAt = new Date().toISOString();
 
   await withStore(STORE_NAMES.appSnapshot, 'readwrite', async (store) => {
     await requestToPromise(store.put({
-      key: 'wallets',
+      key: createScopedSnapshotKey(userId, 'wallets'),
       value: snapshot.wallets,
       updatedAt,
     }));
     await requestToPromise(store.put({
-      key: 'categories',
+      key: createScopedSnapshotKey(userId, 'categories'),
       value: snapshot.categories,
       updatedAt,
     }));
     await requestToPromise(store.put({
-      key: 'transactions',
+      key: createScopedSnapshotKey(userId, 'transactions'),
       value: snapshot.transactions,
       updatedAt,
     }));
   });
 }
 
-export async function clearAppSnapshot() {
+export async function clearAppSnapshot(userId: string) {
   await withStore(STORE_NAMES.appSnapshot, 'readwrite', async (store) => {
-    await requestToPromise(store.clear());
+    await Promise.all([
+      requestToPromise(store.delete(createScopedSnapshotKey(userId, 'wallets'))),
+      requestToPromise(store.delete(createScopedSnapshotKey(userId, 'categories'))),
+      requestToPromise(store.delete(createScopedSnapshotKey(userId, 'transactions'))),
+    ]);
   });
 
   clearLegacyAppSnapshot();

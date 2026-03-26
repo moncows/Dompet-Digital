@@ -36,6 +36,7 @@ export type TransactionMutationType = 'create' | 'update' | 'cancel';
 
 export type TransactionQueueItem = {
   id: string;
+  userId: string;
   transactionId: string;
   operation: TransactionMutationType;
   transaction: Transaction;
