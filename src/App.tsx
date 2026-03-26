@@ -635,13 +635,13 @@ export default function App() {
 
   if (!isStorageHydrated) {
     return (
-      <div className="h-screen w-full bg-gray-50 text-gray-900 font-sans flex items-center justify-center px-6">
-        <div className="max-w-sm w-full rounded-3xl bg-white border border-gray-100 shadow-sm p-6 text-center space-y-3">
+      <div className="h-screen w-full bg-gray-50 dark:bg-slate-950 text-gray-900 dark:text-slate-100 font-sans flex items-center justify-center px-6">
+        <div className="max-w-sm w-full rounded-3xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm p-6 text-center space-y-3">
           <div className="w-12 h-12 mx-auto rounded-2xl bg-blue-600/10 text-blue-600 flex items-center justify-center">
             <Cloud className="w-6 h-6" />
           </div>
-          <h1 className="text-lg font-bold text-gray-900">Memuat Penyimpanan Lokal</h1>
-          <p className="text-sm text-gray-500">
+          <h1 className="text-lg font-bold text-gray-900 dark:text-white">Memuat Penyimpanan Lokal</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
             DompetKu sedang membaca data dari IndexedDB agar transaksi offline tetap aman.
           </p>
         </div>
@@ -650,7 +650,7 @@ export default function App() {
   }
 
   return (
-    <div className="h-screen w-full bg-gray-50 overflow-hidden font-sans text-gray-900">
+    <div className="h-screen w-full bg-gray-50 dark:bg-slate-950 overflow-hidden font-sans text-gray-900 dark:text-slate-100">
       {syncBanner && (
         <div className="fixed left-1/2 top-4 z-[80] w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 px-4">
           <div className={cn('rounded-2xl px-4 py-3 text-sm font-medium shadow-lg backdrop-blur-sm', syncBanner.className)}>
@@ -666,13 +666,13 @@ export default function App() {
         {/* Header (Curved) */}
         <div className="bg-blue-600 pt-12 pb-16 px-6 rounded-b-[2.5rem] shrink-0 shadow-md">
           <div className="flex justify-between items-center mb-6">
-            <div className="w-10 h-10 rounded-full bg-white dark:bg-gray-900/20 flex items-center justify-center text-white font-bold border border-white/30 backdrop-blur-sm">
+            <div className="w-10 h-10 rounded-full bg-white/20 dark:bg-gray-900/20 flex items-center justify-center text-white font-bold border border-white/30 backdrop-blur-sm">
               U
             </div>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setCurrentView('wallets')}
-                className="w-10 h-10 rounded-full bg-white dark:bg-gray-900/20 flex items-center justify-center text-white border border-white/30 backdrop-blur-sm"
+                className="w-10 h-10 rounded-full bg-white/20 dark:bg-gray-900/20 flex items-center justify-center text-white border border-white/30 backdrop-blur-sm"
               >
                 <WalletIcon className="w-5 h-5" />
               </button>
@@ -684,7 +684,7 @@ export default function App() {
               <div className="relative">
                 <button
                   onClick={() => setShowSettings(!showSettings)}
-                  className="w-10 h-10 rounded-full bg-white dark:bg-gray-900/20 flex items-center justify-center text-white border border-white/30 backdrop-blur-sm"
+                  className="w-10 h-10 rounded-full bg-white/20 dark:bg-gray-900/20 flex items-center justify-center text-white border border-white/30 backdrop-blur-sm"
                 >
                   <MoreVertical className="w-5 h-5" />
                 </button>
@@ -926,7 +926,7 @@ export default function App() {
               <ThemeToggleButton
                 theme={theme}
                 onToggle={toggleTheme}
-                className="w-10 h-10 rounded-xl bg-white border border-gray-200 text-gray-600 flex items-center justify-center hover:bg-gray-50 transition-colors shadow-sm"
+                className="w-10 h-10 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 flex items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shadow-sm"
               />
               <button
                 onClick={() => setAddModalOpen(true)}
@@ -1050,7 +1050,7 @@ export default function App() {
                       <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Daftar Dompet</h2>
                       <button
                         onClick={() => setCurrentView('wallets')}
-                        className="p-1 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
+                        className="p-1 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
                       >
                         <Settings className="w-5 h-5" />
                       </button>
@@ -1699,7 +1699,7 @@ function WalletsManageView({
             <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
               <button
                 onClick={() => onEdit(wallet)}
-                className="p-2 text-gray-400 dark:text-gray-500 hover:text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                className="p-2 text-gray-400 dark:text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
               >
                 <Pencil className="w-4 h-4" />
               </button>
@@ -1711,7 +1711,7 @@ function WalletsManageView({
                     () => onDelete(wallet.id)
                   );
                 }}
-                className="p-2 text-gray-400 dark:text-gray-500 hover:text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-colors"
+                className="p-2 text-gray-400 dark:text-gray-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-colors"
               >
                 <Trash2 className="w-4 h-4" />
               </button>
@@ -1756,13 +1756,13 @@ function CategoriesManageView({
       <div className="flex bg-white dark:bg-gray-900 p-1 rounded-xl border border-gray-100 dark:border-gray-800 w-fit">
         <button
           onClick={() => setTypeFilter('expense')}
-          className={cn("px-6 py-2 text-sm font-medium rounded-lg transition-all", typeFilter === 'expense' ? "bg-gray-900 dark:bg-gray-700 text-white shadow-sm" : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-200")}
+          className={cn("px-6 py-2 text-sm font-medium rounded-lg transition-all", typeFilter === 'expense' ? "bg-gray-900 dark:bg-gray-700 text-white shadow-sm" : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200")}
         >
           Pengeluaran
         </button>
         <button
           onClick={() => setTypeFilter('income')}
-          className={cn("px-6 py-2 text-sm font-medium rounded-lg transition-all", typeFilter === 'income' ? "bg-gray-900 dark:bg-gray-700 text-white shadow-sm" : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-200")}
+          className={cn("px-6 py-2 text-sm font-medium rounded-lg transition-all", typeFilter === 'income' ? "bg-gray-900 dark:bg-gray-700 text-white shadow-sm" : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200")}
         >
           Pemasukan
         </button>
@@ -1780,7 +1780,7 @@ function CategoriesManageView({
             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
               <button
                 onClick={() => onEdit(cat)}
-                className="p-2 text-gray-400 dark:text-gray-500 hover:text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                className="p-2 text-gray-400 dark:text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
               >
                 <Pencil className="w-4 h-4" />
               </button>
@@ -1792,7 +1792,7 @@ function CategoriesManageView({
                     () => onDelete(cat.id)
                   );
                 }}
-                className="p-2 text-gray-400 dark:text-gray-500 hover:text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-colors"
+                className="p-2 text-gray-400 dark:text-gray-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-colors"
               >
                 <Trash2 className="w-4 h-4" />
               </button>
@@ -1861,7 +1861,7 @@ function AddCategoryModal({
       <div className="relative bg-white dark:bg-gray-900 rounded-t-3xl sm:rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-200">
         <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{editingCategory ? 'Edit Kategori' : 'Tambah Kategori'}</h3>
-          <button onClick={onClose} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:text-gray-300 p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700">
+          <button onClick={onClose} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -2000,7 +2000,7 @@ function AddWalletModal({
       <div className="relative bg-white dark:bg-gray-900 rounded-t-3xl sm:rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-200">
         <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{editingWallet ? 'Edit Dompet' : 'Tambah Dompet Baru'}</h3>
-          <button onClick={onClose} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:text-gray-300 p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700">
+          <button onClick={onClose} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -2138,7 +2138,7 @@ function AddTransactionModal({
       <div className="relative bg-white dark:bg-gray-900 rounded-t-3xl sm:rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh] animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-200">
         <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between bg-white dark:bg-gray-900">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{editingTransaction ? 'Edit Transaksi' : 'Tambah Transaksi'}</h3>
-          <button onClick={onClose} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:text-gray-300 p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700">
+          <button onClick={onClose} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -2152,7 +2152,7 @@ function AddTransactionModal({
                 onClick={() => setType(t)}
                 className={cn(
                   "flex-1 py-2 text-sm font-medium rounded-lg capitalize transition-all",
-                  type === t ? "bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm" : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-200"
+                  type === t ? "bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm" : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
                 )}
               >
                 {t === 'expense' ? 'Keluar' : t === 'income' ? 'Masuk' : 'Transfer'}

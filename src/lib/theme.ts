@@ -22,5 +22,7 @@ export function applyTheme(theme: ThemeMode) {
 
   const root = document.documentElement;
   root.dataset.theme = theme;
+  root.classList.toggle('dark', theme === 'dark');
+  root.classList.toggle('light', theme === 'light');
   root.style.colorScheme = theme;
 }
