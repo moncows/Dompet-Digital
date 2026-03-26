@@ -87,9 +87,7 @@ import {
   Cookie,
   Candy,
   Popcorn,
-  AlertCircle,
-  Sun,
-  Moon
+  AlertCircle
 } from 'lucide-react';
 import {
   BarChart as ReBarChart,
@@ -245,12 +243,6 @@ export default function App() {
 
   const [currentView, setCurrentView] = useState<'dashboard' | 'reports' | 'transactions' | 'categories' | 'wallets'>('dashboard');
   const [selectedWalletFilter, setSelectedWalletFilter] = useState<string | null>(null);
-
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    const saved = localStorage.getItem('dompetku_theme');
-    if (saved) return saved as 'light' | 'dark';
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  });
 
   // --- PERSISTENCE ---
   React.useEffect(() => {
@@ -678,13 +670,6 @@ export default function App() {
               U
             </div>
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                className="w-10 h-10 rounded-full bg-white dark:bg-gray-900/20 flex items-center justify-center text-white border border-white/30 backdrop-blur-sm"
-                aria-label="Toggle theme"
-              >
-                {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-              </button>
               <button
                 onClick={() => setCurrentView('wallets')}
                 className="w-10 h-10 rounded-full bg-white dark:bg-gray-900/20 flex items-center justify-center text-white border border-white/30 backdrop-blur-sm"
