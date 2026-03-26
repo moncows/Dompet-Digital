@@ -1,12 +1,12 @@
 import React, { useState, useMemo } from 'react';
-import { 
+import {
   Trash2,
-  Wallet as WalletIcon, 
-  CreditCard, 
-  Landmark, 
-  Plus, 
-  ArrowUpRight, 
-  ArrowDownRight, 
+  Wallet as WalletIcon,
+  CreditCard,
+  Landmark,
+  Plus,
+  ArrowUpRight,
+  ArrowDownRight,
   ArrowRightLeft,
   Home,
   PieChart,
@@ -87,18 +87,20 @@ import {
   Cookie,
   Candy,
   Popcorn,
-  AlertCircle
+  AlertCircle,
+  Sun,
+  Moon
 } from 'lucide-react';
-import { 
-  BarChart as ReBarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer, 
-  PieChart as RePieChart, 
-  Pie, 
+import {
+  BarChart as ReBarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart as RePieChart,
+  Pie,
   Cell,
   Legend
 } from 'recharts';
@@ -141,11 +143,11 @@ const INITIAL_WALLETS: Wallet[] = [
 ];
 
 const CATEGORIES: Category[] = [
-  { id: 'c1', name: 'Gaji', type: 'income', icon: 'Briefcase', color: 'text-emerald-600 bg-emerald-100' },
-  { id: 'c2', name: 'Bonus', type: 'income', icon: 'Gift', color: 'text-teal-600 bg-teal-100' },
-  { id: 'c3', name: 'Makanan', type: 'expense', icon: 'Coffee', color: 'text-orange-600 bg-orange-100' },
-  { id: 'c4', name: 'Belanja', type: 'expense', icon: 'ShoppingCart', color: 'text-purple-600 bg-purple-100' },
-  { id: 'c5', name: 'Transportasi', type: 'expense', icon: 'Car', color: 'text-blue-600 bg-blue-100' },
+  { id: 'c1', name: 'Gaji', type: 'income', icon: 'Briefcase', color: 'text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/30' },
+  { id: 'c2', name: 'Bonus', type: 'income', icon: 'Gift', color: 'text-teal-600 dark:text-teal-400 bg-teal-100 dark:bg-teal-900/30' },
+  { id: 'c3', name: 'Makanan', type: 'expense', icon: 'Coffee', color: 'text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/30' },
+  { id: 'c4', name: 'Belanja', type: 'expense', icon: 'ShoppingCart', color: 'text-purple-600 dark:text-purple-400 bg-purple-100 dark:bg-purple-900/30' },
+  { id: 'c5', name: 'Transportasi', type: 'expense', icon: 'Car', color: 'text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30' },
 ];
 
 const INITIAL_TRANSACTIONS: Transaction[] = [
@@ -167,15 +169,15 @@ const formatRupiah = (amount: number) => {
 };
 
 const getIconComponent = (iconName: string) => {
-  const icons: Record<string, any> = { 
-    WalletIcon, CreditCard, Landmark, Coffee, ShoppingCart, Car, Briefcase, Gift, 
-    Home, Utensils, Zap, Heart, Book, Music, Film, Camera, Phone, Laptop, 
-    Smartphone, Plane, Dumbbell, GraduationCap, Stethoscope, Pill, Shield, 
-    Lock, Search, Users, Mail, MessageSquare, Send, Cloud, Sun, Moon, Star, 
-    Activity, Target, Flag, Award, Trophy, Medal, Map, Navigation, 
-    Compass, Anchor, Bike, Truck, Bus, Train, Ship, Umbrella, 
-    Wind, Droplets, Thermometer, Sunrise, Sunset, Pizza, Sandwich, 
-    IceCream, Beer, Wine, Apple, Banana, Cherry, Grape, 
+  const icons: Record<string, any> = {
+    WalletIcon, CreditCard, Landmark, Coffee, ShoppingCart, Car, Briefcase, Gift,
+    Home, Utensils, Zap, Heart, Book, Music, Film, Camera, Phone, Laptop,
+    Smartphone, Plane, Dumbbell, GraduationCap, Stethoscope, Pill, Shield,
+    Lock, Search, Users, Mail, MessageSquare, Send, Cloud, Sun, Moon, Star,
+    Activity, Target, Flag, Award, Trophy, Medal, Map, Navigation,
+    Compass, Anchor, Bike, Truck, Bus, Train, Ship, Umbrella,
+    Wind, Droplets, Thermometer, Sunrise, Sunset, Pizza, Sandwich,
+    IceCream, Beer, Wine, Apple, Banana, Cherry, Grape,
     Carrot, Egg, Cake, Cookie, Candy, Popcorn
   };
   const Icon = icons[iconName] || WalletIcon;
@@ -234,15 +236,21 @@ export default function App() {
     isOpen: false,
     title: '',
     message: '',
-    onConfirm: () => {},
+    onConfirm: () => { },
   });
-  
+
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [editingWallet, setEditingWallet] = useState<Wallet | null>(null);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
 
   const [currentView, setCurrentView] = useState<'dashboard' | 'reports' | 'transactions' | 'categories' | 'wallets'>('dashboard');
   const [selectedWalletFilter, setSelectedWalletFilter] = useState<string | null>(null);
+
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    const saved = localStorage.getItem('dompetku_theme');
+    if (saved) return saved as 'light' | 'dark';
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  });
 
   // --- PERSISTENCE ---
   React.useEffect(() => {
@@ -396,18 +404,18 @@ export default function App() {
 
   // --- CALCULATIONS ---
   const totalBalance = useMemo(() => wallets.reduce((acc, w) => acc + w.balance, 0), [wallets]);
-  
+
   const currentMonthTransactions = useMemo(() => {
     return transactions.filter(t => t.status !== 'canceled');
   }, [transactions]);
 
-  const totalIncome = useMemo(() => 
+  const totalIncome = useMemo(() =>
     currentMonthTransactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0)
-  , [currentMonthTransactions]);
+    , [currentMonthTransactions]);
 
-  const totalExpense = useMemo(() => 
+  const totalExpense = useMemo(() =>
     currentMonthTransactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0)
-  , [currentMonthTransactions]);
+    , [currentMonthTransactions]);
 
   const filteredTransactions = useMemo(() => {
     let filtered = [...transactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -484,7 +492,7 @@ export default function App() {
 
     setWallets(prev => {
       let nextWallets = [...prev];
-      
+
       // 1. Reverse old transaction
       nextWallets = nextWallets.map(w => {
         if (oldTx.type === 'income' && w.id === oldTx.walletId) return { ...w, balance: w.balance - oldTx.amount };
@@ -567,7 +575,7 @@ export default function App() {
         isOpen: true,
         title: 'Tidak Dapat Menghapus',
         message: 'Dompet ini memiliki transaksi. Hapus semua transaksi terkait terlebih dahulu.',
-        onConfirm: () => {},
+        onConfirm: () => { },
         isDestructive: false,
         confirmText: 'Ok'
       });
@@ -598,7 +606,7 @@ export default function App() {
         isOpen: true,
         title: 'Tidak Dapat Menghapus',
         message: 'Kategori ini sedang digunakan dalam transaksi. Ubah kategori transaksi tersebut terlebih dahulu.',
-        onConfirm: () => {},
+        onConfirm: () => { },
         isDestructive: false,
         confirmText: 'Ok'
       });
@@ -614,23 +622,23 @@ export default function App() {
   const hasBackendSyncConfigured = Boolean(import.meta.env.VITE_API_BASE_URL?.trim());
   const syncBanner = !isOnline
     ? {
-        text: 'Offline mode aktif. Transaksi baru disimpan lokal dan akan dikirim saat koneksi kembali.',
-        className: 'bg-amber-500 text-white',
-      }
+      text: 'Offline mode aktif. Transaksi baru disimpan lokal dan akan dikirim saat koneksi kembali.',
+      className: 'bg-amber-500 text-white',
+    }
     : pendingSyncCount > 0
       ? {
-          text: hasBackendSyncConfigured
-            ? syncInFlightRef.current
-              ? `Menyinkronkan ${pendingSyncCount} perubahan ke server...`
-              : `${pendingSyncCount} perubahan menunggu sinkronisasi ke server.`
-            : `${pendingSyncCount} perubahan aman di perangkat, tetapi backend API belum dikonfigurasi.`,
-          className: hasBackendSyncConfigured ? 'bg-slate-900 text-white' : 'bg-sky-600 text-white',
-        }
+        text: hasBackendSyncConfigured
+          ? syncInFlightRef.current
+            ? `Menyinkronkan ${pendingSyncCount} perubahan ke server...`
+            : `${pendingSyncCount} perubahan menunggu sinkronisasi ke server.`
+          : `${pendingSyncCount} perubahan aman di perangkat, tetapi backend API belum dikonfigurasi.`,
+        className: hasBackendSyncConfigured ? 'bg-slate-900 text-white' : 'bg-sky-600 text-white',
+      }
       : syncNotice
         ? {
-            text: syncNotice,
-            className: syncNotice.includes('berhasil') ? 'bg-emerald-600 text-white' : 'bg-slate-900 text-white',
-          }
+          text: syncNotice,
+          className: syncNotice.includes('berhasil') ? 'bg-emerald-600 text-white' : 'bg-slate-900 text-white',
+        }
         : null;
 
   if (!isStorageHydrated) {
@@ -658,7 +666,7 @@ export default function App() {
           </div>
         </div>
       )}
-      
+
       {/* ==========================================
           MOBILE VIEW (Native App Style)
           ========================================== */}
@@ -666,13 +674,20 @@ export default function App() {
         {/* Header (Curved) */}
         <div className="bg-blue-600 pt-12 pb-16 px-6 rounded-b-[2.5rem] shrink-0 shadow-md">
           <div className="flex justify-between items-center mb-6">
-            <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white font-bold border border-white/30 backdrop-blur-sm">
+            <div className="w-10 h-10 rounded-full bg-white dark:bg-gray-900/20 flex items-center justify-center text-white font-bold border border-white/30 backdrop-blur-sm">
               U
             </div>
             <div className="flex items-center gap-2">
-              <button 
+              <button
+                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                className="w-10 h-10 rounded-full bg-white dark:bg-gray-900/20 flex items-center justify-center text-white border border-white/30 backdrop-blur-sm"
+                aria-label="Toggle theme"
+              >
+                {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+              </button>
+              <button
                 onClick={() => setCurrentView('wallets')}
-                className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white border border-white/30 backdrop-blur-sm"
+                className="w-10 h-10 rounded-full bg-white dark:bg-gray-900/20 flex items-center justify-center text-white border border-white/30 backdrop-blur-sm"
               >
                 <WalletIcon className="w-5 h-5" />
               </button>
@@ -682,25 +697,25 @@ export default function App() {
                 className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white border border-white/30 backdrop-blur-sm transition-colors"
               />
               <div className="relative">
-                <button 
+                <button
                   onClick={() => setShowSettings(!showSettings)}
-                  className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white border border-white/30 backdrop-blur-sm"
+                  className="w-10 h-10 rounded-full bg-white dark:bg-gray-900/20 flex items-center justify-center text-white border border-white/30 backdrop-blur-sm"
                 >
                   <MoreVertical className="w-5 h-5" />
                 </button>
                 {showSettings && (
-                  <div className="absolute top-12 right-0 w-48 bg-white rounded-2xl shadow-xl border border-gray-100 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-                    <button 
+                  <div className="absolute top-12 right-0 w-48 bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-800 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <button
                       onClick={(e) => {
                         e.stopPropagation();
                         confirmAction(
-                          'Reset Data', 
+                          'Reset Data',
                           'Apakah Anda yakin ingin menghapus semua data? Tindakan ini tidak dapat dibatalkan.',
                           handleResetData
                         );
                         setShowSettings(false);
                       }}
-                      className="w-full px-4 py-3 text-left text-sm font-medium text-rose-600 hover:bg-rose-50 flex items-center gap-2"
+                      className="w-full px-4 py-3 text-left text-sm font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 flex items-center gap-2"
                     >
                       <Trash2 className="w-4 h-4" />
                       Reset Database
@@ -718,24 +733,24 @@ export default function App() {
         <div className="-mt-10 shrink-0 z-10 w-full">
           <div className="flex gap-4 overflow-x-auto px-6 pb-4 snap-x hide-scrollbar">
             {wallets.map(wallet => (
-              <div 
-                key={wallet.id} 
-                onClick={() => setSelectedWalletFilter(wallet.id === selectedWalletFilter ? null : wallet.id)} 
+              <div
+                key={wallet.id}
+                onClick={() => setSelectedWalletFilter(wallet.id === selectedWalletFilter ? null : wallet.id)}
                 className={cn(
-                  "bg-white rounded-2xl p-4 shadow-sm min-w-[150px] snap-center shrink-0 border-2 transition-colors cursor-pointer", 
+                  "bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm min-w-[150px] snap-center shrink-0 border-2 transition-colors cursor-pointer",
                   selectedWalletFilter === wallet.id ? "border-blue-500" : "border-transparent"
                 )}
               >
                 <div className={cn("w-10 h-10 rounded-full flex items-center justify-center text-white mb-3", wallet.color)}>
                   {getIconComponent(wallet.icon)}
                 </div>
-                <div className="text-sm text-gray-500 font-medium">{wallet.name}</div>
-                <div className="font-bold text-gray-900 mt-0.5">{formatRupiah(wallet.balance)}</div>
+                <div className="text-sm text-gray-500 dark:text-gray-400 font-medium">{wallet.name}</div>
+                <div className="font-bold text-gray-900 dark:text-white mt-0.5">{formatRupiah(wallet.balance)}</div>
               </div>
             ))}
-            <div 
+            <div
               onClick={() => setAddWalletModalOpen(true)}
-              className="bg-blue-50/50 border-2 border-dashed border-blue-200 rounded-2xl p-4 min-w-[120px] snap-center shrink-0 flex flex-col items-center justify-center text-blue-600 cursor-pointer hover:bg-blue-50 transition-colors"
+              className="bg-blue-50/50 dark:bg-blue-900/20 border-2 border-dashed border-blue-200 dark:border-blue-800 rounded-2xl p-4 min-w-[120px] snap-center shrink-0 flex flex-col items-center justify-center text-blue-600 dark:text-blue-400 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
             >
               <Plus className="w-8 h-8 mb-2" />
               <span className="text-sm font-medium">Tambah</span>
@@ -748,37 +763,37 @@ export default function App() {
           {currentView === 'dashboard' ? (
             <>
               <div className="flex justify-between items-center mb-4">
-                <h3 className="font-bold text-gray-900 text-lg">Transaksi Terakhir</h3>
-                <button 
+                <h3 className="font-bold text-gray-900 dark:text-white text-lg">Transaksi Terakhir</h3>
+                <button
                   onClick={() => setCurrentView('transactions')}
-                  className="text-sm text-blue-600 font-medium"
+                  className="text-sm text-blue-600 dark:text-blue-400 font-medium"
                 >
                   Lihat Semua
                 </button>
               </div>
               <div className="space-y-4">
                 {filteredTransactions.slice(0, 10).length === 0 ? (
-                  <div className="text-center text-gray-500 py-8">Belum ada transaksi.</div>
+                  <div className="text-center text-gray-500 dark:text-gray-400 py-8">Belum ada transaksi.</div>
                 ) : (
                   filteredTransactions.slice(0, 10).map(tx => {
                     const isIncome = tx.type === 'income';
                     const isTransfer = tx.type === 'transfer';
                     const category = categories.find(c => c.id === tx.categoryId);
                     const wallet = wallets.find(w => w.id === tx.walletId);
-                    
+
                     return (
-                      <div key={tx.id} className={cn("bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-3", tx.status === 'canceled' && "opacity-60")}>
-                        <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0", isTransfer ? "bg-gray-100 text-gray-600" : category?.color || "bg-gray-100 text-gray-600")}>
+                      <div key={tx.id} className={cn("bg-white dark:bg-gray-900 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex items-center gap-3", tx.status === 'canceled' && "opacity-60")}>
+                        <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0", isTransfer ? "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300" : category?.color || "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300")}>
                           {isTransfer ? <ArrowRightLeft className="w-5 h-5" /> : getIconComponent(category?.icon || 'WalletIcon')}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className={cn("font-bold text-gray-900 truncate text-sm flex items-center gap-2", tx.status === 'canceled' && "line-through text-gray-500")}>
+                          <div className={cn("font-bold text-gray-900 dark:text-white truncate text-sm flex items-center gap-2", tx.status === 'canceled' && "line-through text-gray-500 dark:text-gray-400")}>
                             {tx.note || (isTransfer ? 'Transfer' : category?.name)}
-                            {tx.status === 'canceled' && <span className="text-[9px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded font-medium no-underline">Dibatalkan</span>}
+                            {tx.status === 'canceled' && <span className="text-[9px] bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 px-1.5 py-0.5 rounded font-medium no-underline">Dibatalkan</span>}
                           </div>
-                          <div className="text-[10px] text-gray-500 mt-0.5">{wallet?.name} • {format(parseISO(tx.date), 'dd MMM', { locale: id })}</div>
+                          <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">{wallet?.name} • {format(parseISO(tx.date), 'dd MMM', { locale: id })}</div>
                         </div>
-                        <div className={cn("font-bold whitespace-nowrap text-right text-sm", tx.status === 'canceled' ? "text-gray-400 line-through" : isIncome ? "text-emerald-600" : isTransfer ? "text-gray-900" : "text-rose-600")}>
+                        <div className={cn("font-bold whitespace-nowrap text-right text-sm", tx.status === 'canceled' ? "text-gray-400 dark:text-gray-500 line-through" : isIncome ? "text-emerald-600 dark:text-emerald-400" : isTransfer ? "text-gray-900 dark:text-white" : "text-rose-600 dark:text-rose-400")}>
                           {isIncome ? '+' : isTransfer ? '' : '-'}{formatRupiah(tx.amount)}
                         </div>
                       </div>
@@ -793,9 +808,9 @@ export default function App() {
             </div>
           ) : currentView === 'transactions' ? (
             <div className="pb-20">
-              <TransactionsView 
-                transactions={filteredTransactions} 
-                categories={categories} 
+              <TransactionsView
+                transactions={filteredTransactions}
+                categories={categories}
                 wallets={wallets}
                 onDelete={handleDeleteTransaction}
                 onEdit={(tx) => setEditingTransaction(tx)}
@@ -803,17 +818,17 @@ export default function App() {
               />
             </div>
           ) : currentView === 'wallets' ? (
-            <WalletsManageView 
-              wallets={wallets} 
-              onEdit={(w) => setEditingWallet(w)} 
+            <WalletsManageView
+              wallets={wallets}
+              onEdit={(w) => setEditingWallet(w)}
               onDelete={handleDeleteWallet}
               onAdd={() => setAddWalletModalOpen(true)}
               onShowConfirm={confirmAction}
             />
           ) : (
-            <CategoriesManageView 
-              categories={categories} 
-              onEdit={(c) => setEditingCategory(c)} 
+            <CategoriesManageView
+              categories={categories}
+              onEdit={(c) => setEditingCategory(c)}
               onDelete={handleDeleteCategory}
               onAdd={() => setAddCategoryModalOpen(true)}
               onShowConfirm={confirmAction}
@@ -822,43 +837,43 @@ export default function App() {
         </div>
 
         {/* Bottom Navigation Bar */}
-        <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-6 py-2 flex justify-between items-center pb-safe z-20">
-          <button 
+        <div className="absolute bottom-0 left-0 right-0 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 px-6 py-2 flex justify-between items-center pb-safe z-20">
+          <button
             onClick={() => setCurrentView('dashboard')}
-            className={cn("flex flex-col items-center p-2", currentView === 'dashboard' ? "text-blue-600" : "text-gray-400")}
+            className={cn("flex flex-col items-center p-2", currentView === 'dashboard' ? "text-blue-600 dark:text-blue-400" : "text-gray-400 dark:text-gray-500")}
           >
-            <Home className="w-6 h-6"/>
+            <Home className="w-6 h-6" />
             <span className={cn("text-[10px] mt-1", currentView === 'dashboard' ? "font-bold" : "font-medium")}>Home</span>
           </button>
-          <button 
+          <button
             onClick={() => setCurrentView('transactions')}
-            className={cn("flex flex-col items-center p-2", currentView === 'transactions' ? "text-blue-600" : "text-gray-400")}
+            className={cn("flex flex-col items-center p-2", currentView === 'transactions' ? "text-blue-600 dark:text-blue-400" : "text-gray-400 dark:text-gray-500")}
           >
-            <ArrowRightLeft className="w-6 h-6"/>
+            <ArrowRightLeft className="w-6 h-6" />
             <span className={cn("text-[10px] mt-1", currentView === 'transactions' ? "font-bold" : "font-medium")}>Transaksi</span>
           </button>
-          
+
           <div className="w-16"></div> {/* Spacer for FAB */}
 
-          <button 
+          <button
             onClick={() => setCurrentView('reports')}
-            className={cn("flex flex-col items-center p-2", currentView === 'reports' ? "text-blue-600" : "text-gray-400")}
+            className={cn("flex flex-col items-center p-2", currentView === 'reports' ? "text-blue-600 dark:text-blue-400" : "text-gray-400 dark:text-gray-500")}
           >
-            <PieChart className="w-6 h-6"/>
+            <PieChart className="w-6 h-6" />
             <span className={cn("text-[10px] mt-1", currentView === 'reports' ? "font-bold" : "font-medium")}>Laporan</span>
           </button>
-          <button 
+          <button
             onClick={() => setCurrentView('categories')}
-            className={cn("flex flex-col items-center p-2", currentView === 'categories' ? "text-blue-600" : "text-gray-400")}
+            className={cn("flex flex-col items-center p-2", currentView === 'categories' ? "text-blue-600 dark:text-blue-400" : "text-gray-400 dark:text-gray-500")}
           >
-            <Tag className="w-6 h-6"/>
+            <Tag className="w-6 h-6" />
             <span className={cn("text-[10px] mt-1", currentView === 'categories' ? "font-bold" : "font-medium")}>Kategori</span>
           </button>
-          
+
           {/* FAB */}
-          <button 
-            onClick={() => setAddModalOpen(true)} 
-            className="absolute left-1/2 -translate-x-1/2 -top-6 w-14 h-14 bg-blue-600 rounded-full flex items-center justify-center text-white shadow-lg shadow-blue-600/40 border-4 border-gray-50 hover:bg-blue-700 hover:scale-105 transition-all active:scale-95"
+          <button
+            onClick={() => setAddModalOpen(true)}
+            className="absolute left-1/2 -translate-x-1/2 -top-6 w-14 h-14 bg-blue-600 rounded-full flex items-center justify-center text-white shadow-lg shadow-blue-600/40 border-4 border-gray-50 dark:border-gray-800 hover:bg-blue-700 hover:scale-105 transition-all active:scale-95"
           >
             <Plus className="w-7 h-7" />
           </button>
@@ -870,47 +885,47 @@ export default function App() {
           ========================================== */}
       <div className="hidden lg:flex h-full w-full">
         {/* SIDEBAR */}
-        <aside className="w-64 bg-white border-r border-gray-200 flex flex-col shrink-0">
-          <div className="h-16 flex items-center px-6 border-b border-gray-100">
-            <div className="flex items-center gap-2 text-blue-600">
+        <aside className="w-64 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col shrink-0">
+          <div className="h-16 flex items-center px-6 border-b border-gray-100 dark:border-gray-800">
+            <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
               <WalletIcon className="w-6 h-6" />
               <span className="text-xl font-bold tracking-tight">DompetKu</span>
             </div>
           </div>
           <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
-            <button 
+            <button
               onClick={() => setCurrentView('dashboard')}
-              className={cn("w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-colors", currentView === 'dashboard' ? "bg-blue-50 text-blue-700" : "text-gray-600 hover:bg-gray-50")}
+              className={cn("w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-colors", currentView === 'dashboard' ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400" : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800")}
             >
               <Home className="w-5 h-5" /> Dashboard
             </button>
-            <button 
+            <button
               onClick={() => setCurrentView('transactions')}
-              className={cn("w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-colors", currentView === 'transactions' ? "bg-blue-50 text-blue-700" : "text-gray-600 hover:bg-gray-50")}
+              className={cn("w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-colors", currentView === 'transactions' ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400" : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800")}
             >
               <ArrowRightLeft className="w-5 h-5" /> Transaksi
             </button>
-            <button 
+            <button
               onClick={() => setCurrentView('wallets')}
-              className={cn("w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-colors", currentView === 'wallets' ? "bg-blue-50 text-blue-700" : "text-gray-600 hover:bg-gray-50")}
+              className={cn("w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-colors", currentView === 'wallets' ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400" : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800")}
             >
               <WalletIcon className="w-5 h-5" /> Dompet
             </button>
-            <button 
+            <button
               onClick={() => setCurrentView('categories')}
-              className={cn("w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-colors", currentView === 'categories' ? "bg-blue-50 text-blue-700" : "text-gray-600 hover:bg-gray-50")}
+              className={cn("w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-colors", currentView === 'categories' ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400" : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800")}
             >
               <Tag className="w-5 h-5" /> Kategori
             </button>
-            <button 
+            <button
               onClick={() => setCurrentView('reports')}
-              className={cn("w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-colors", currentView === 'reports' ? "bg-blue-50 text-blue-700" : "text-gray-600 hover:bg-gray-50")}
+              className={cn("w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-colors", currentView === 'reports' ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400" : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800")}
             >
               <PieChart className="w-5 h-5" /> Laporan
             </button>
           </nav>
-          <div className="p-4 border-t border-gray-100">
-            <a href="#" className="flex items-center gap-3 px-3 py-2.5 text-gray-600 hover:bg-gray-50 rounded-lg font-medium transition-colors">
+          <div className="p-4 border-t border-gray-100 dark:border-gray-800">
+            <a href="#" className="flex items-center gap-3 px-3 py-2.5 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg font-medium transition-colors">
               <Settings className="w-5 h-5" /> Pengaturan
             </a>
           </div>
@@ -918,8 +933,8 @@ export default function App() {
 
         {/* MAIN CONTENT */}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-8 shrink-0">
-            <h1 className="text-lg font-semibold text-gray-800">
+          <header className="h-16 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-8 shrink-0">
+            <h1 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
               {currentView === 'dashboard' ? 'Dashboard Keuangan' : currentView === 'reports' ? 'Laporan Keuangan' : 'Riwayat Transaksi'}
             </h1>
             <div className="flex items-center gap-3">
@@ -928,7 +943,7 @@ export default function App() {
                 onToggle={toggleTheme}
                 className="w-10 h-10 rounded-xl bg-white border border-gray-200 text-gray-600 flex items-center justify-center hover:bg-gray-50 transition-colors shadow-sm"
               />
-              <button 
+              <button
                 onClick={() => setAddModalOpen(true)}
                 className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
               >
@@ -936,24 +951,24 @@ export default function App() {
                 <span>Tambah Transaksi</span>
               </button>
               <div className="relative">
-                <button 
+                <button
                   onClick={() => setShowSettings(!showSettings)}
-                  className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold border border-blue-200 hover:bg-blue-200 transition-colors"
+                  className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold border border-blue-200 dark:border-blue-800 hover:bg-blue-200 dark:hover:bg-blue-800/50 transition-colors"
                 >
                   U
                 </button>
                 {showSettings && (
-                  <div className="absolute top-10 right-0 w-48 bg-white rounded-xl shadow-xl border border-gray-100 py-1 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-                    <button 
+                  <div className="absolute top-10 right-0 w-48 bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-gray-100 dark:border-gray-800 py-1 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <button
                       onClick={() => {
                         confirmAction(
-                          'Reset Data', 
+                          'Reset Data',
                           'Apakah Anda yakin ingin menghapus semua data? Tindakan ini tidak dapat dibatalkan.',
                           handleResetData
                         );
                         setShowSettings(false);
                       }}
-                      className="w-full px-4 py-2.5 text-left text-sm font-medium text-rose-600 hover:bg-rose-50 flex items-center gap-2"
+                      className="w-full px-4 py-2.5 text-left text-sm font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 flex items-center gap-2"
                     >
                       <Trash2 className="w-4 h-4" />
                       Reset Database
@@ -969,48 +984,48 @@ export default function App() {
               <div className="max-w-7xl mx-auto space-y-6">
                 {/* STATS GRID */}
                 <div className="grid grid-cols-3 gap-6">
-                  <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-                    <div className="text-sm font-medium text-gray-500 mb-1">Total Saldo</div>
-                    <div className="text-3xl font-bold text-gray-900">{formatRupiah(totalBalance)}</div>
-                    <div className="mt-4 flex items-center text-sm text-gray-500">
+                  <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 border border-gray-100 dark:border-gray-800 shadow-sm">
+                    <div className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Total Saldo</div>
+                    <div className="text-3xl font-bold text-gray-900 dark:text-white">{formatRupiah(totalBalance)}</div>
+                    <div className="mt-4 flex items-center text-sm text-gray-500 dark:text-gray-400">
                       <span>Dari {wallets.length} dompet aktif</span>
                     </div>
                   </div>
-                  <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+                  <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 border border-gray-100 dark:border-gray-800 shadow-sm">
                     <div className="flex items-center justify-between mb-1">
-                      <div className="text-sm font-medium text-gray-500">Pemasukan (Bulan Ini)</div>
-                      <div className="w-8 h-8 rounded-full bg-emerald-50 flex items-center justify-center">
-                        <ArrowDownRight className="w-4 h-4 text-emerald-600" />
+                      <div className="text-sm font-medium text-gray-500 dark:text-gray-400">Pemasukan (Bulan Ini)</div>
+                      <div className="w-8 h-8 rounded-full bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center">
+                        <ArrowDownRight className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                       </div>
                     </div>
-                    <div className="text-2xl font-bold text-gray-900">{formatRupiah(totalIncome)}</div>
+                    <div className="text-2xl font-bold text-gray-900 dark:text-white">{formatRupiah(totalIncome)}</div>
                   </div>
-                  <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+                  <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 border border-gray-100 dark:border-gray-800 shadow-sm">
                     <div className="flex items-center justify-between mb-1">
-                      <div className="text-sm font-medium text-gray-500">Pengeluaran (Bulan Ini)</div>
-                      <div className="w-8 h-8 rounded-full bg-rose-50 flex items-center justify-center">
-                        <ArrowUpRight className="w-4 h-4 text-rose-600" />
+                      <div className="text-sm font-medium text-gray-500 dark:text-gray-400">Pengeluaran (Bulan Ini)</div>
+                      <div className="w-8 h-8 rounded-full bg-rose-50 dark:bg-rose-900/20 flex items-center justify-center">
+                        <ArrowUpRight className="w-4 h-4 text-rose-600 dark:text-rose-400" />
                       </div>
                     </div>
-                    <div className="text-2xl font-bold text-gray-900">{formatRupiah(totalExpense)}</div>
+                    <div className="text-2xl font-bold text-gray-900 dark:text-white">{formatRupiah(totalExpense)}</div>
                   </div>
                 </div>
 
                 {/* TWO COLUMN LAYOUT */}
                 <div className="grid grid-cols-3 gap-6">
-                  <div className="col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
-                    <div className="p-5 border-b border-gray-100 flex items-center justify-between">
-                      <h2 className="text-lg font-semibold text-gray-900">Transaksi Terakhir</h2>
-                      <button 
+                  <div className="col-span-2 bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden flex flex-col">
+                    <div className="p-5 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
+                      <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Transaksi Terakhir</h2>
+                      <button
                         onClick={() => setCurrentView('transactions')}
-                        className="text-sm text-blue-600 font-medium hover:text-blue-700"
+                        className="text-sm text-blue-600 dark:text-blue-400 font-medium hover:text-blue-700 dark:text-blue-400"
                       >
                         Lihat Semua
                       </button>
                     </div>
-                    <div className="divide-y divide-gray-50 flex-1">
+                    <div className="divide-y divide-gray-50 dark:divide-gray-800 flex-1">
                       {filteredTransactions.slice(0, 10).length === 0 ? (
-                        <div className="p-8 text-center text-gray-500">Belum ada transaksi.</div>
+                        <div className="p-8 text-center text-gray-500 dark:text-gray-400">Belum ada transaksi.</div>
                       ) : (
                         filteredTransactions.slice(0, 10).map(tx => {
                           const isIncome = tx.type === 'income';
@@ -1020,22 +1035,22 @@ export default function App() {
                           const toWallet = wallets.find(w => w.id === tx.toWalletId);
 
                           return (
-                            <div key={tx.id} className={cn("p-5 flex items-center gap-4 hover:bg-gray-50 transition-colors", tx.status === 'canceled' && "opacity-60")}>
-                              <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center shrink-0", isTransfer ? "bg-gray-100 text-gray-600" : category?.color || "bg-gray-100 text-gray-600")}>
+                            <div key={tx.id} className={cn("p-5 flex items-center gap-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors", tx.status === 'canceled' && "opacity-60")}>
+                              <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center shrink-0", isTransfer ? "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300" : category?.color || "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300")}>
                                 {isTransfer ? <ArrowRightLeft className="w-6 h-6" /> : getIconComponent(category?.icon || 'WalletIcon')}
                               </div>
                               <div className="flex-1 min-w-0">
-                                <div className={cn("font-medium text-gray-900 truncate flex items-center gap-2", tx.status === 'canceled' && "line-through text-gray-500")}>
+                                <div className={cn("font-medium text-gray-900 dark:text-white truncate flex items-center gap-2", tx.status === 'canceled' && "line-through text-gray-500 dark:text-gray-400")}>
                                   {tx.note || (isTransfer ? 'Transfer' : category?.name)}
-                                  {tx.status === 'canceled' && <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded font-medium no-underline">Dibatalkan</span>}
+                                  {tx.status === 'canceled' && <span className="text-[10px] bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 px-2 py-0.5 rounded font-medium no-underline">Dibatalkan</span>}
                                 </div>
-                                <div className="text-sm text-gray-500 flex items-center gap-1.5 mt-0.5">
+                                <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1.5 mt-0.5">
                                   <span>{format(parseISO(tx.date), 'dd MMM yyyy', { locale: id })}</span>
                                   <span>•</span>
                                   <span className="truncate">{isTransfer ? `${wallet?.name} → ${toWallet?.name}` : wallet?.name}</span>
                                 </div>
                               </div>
-                              <div className={cn("font-semibold whitespace-nowrap text-right", tx.status === 'canceled' ? "text-gray-400 line-through" : isIncome ? "text-emerald-600" : isTransfer ? "text-gray-900" : "text-rose-600")}>
+                              <div className={cn("font-semibold whitespace-nowrap text-right", tx.status === 'canceled' ? "text-gray-400 dark:text-gray-500 line-through" : isIncome ? "text-emerald-600 dark:text-emerald-400" : isTransfer ? "text-gray-900 dark:text-white" : "text-rose-600 dark:text-rose-400")}>
                                 {isIncome ? '+' : isTransfer ? '' : '-'}{formatRupiah(tx.amount)}
                               </div>
                             </div>
@@ -1045,47 +1060,47 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col h-fit">
-                    <div className="p-5 border-b border-gray-100 flex items-center justify-between">
-                      <h2 className="text-lg font-semibold text-gray-900">Daftar Dompet</h2>
-                      <button 
+                  <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden flex flex-col h-fit">
+                    <div className="p-5 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
+                      <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Daftar Dompet</h2>
+                      <button
                         onClick={() => setCurrentView('wallets')}
-                        className="p-1 text-gray-400 hover:text-gray-600 rounded-md hover:bg-gray-100"
+                        className="p-1 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
                       >
                         <Settings className="w-5 h-5" />
                       </button>
                     </div>
                     <div className="p-3 space-y-2">
-                      <button 
+                      <button
                         onClick={() => setSelectedWalletFilter(null)}
-                        className={cn("w-full flex items-center justify-between p-3 rounded-xl transition-colors text-left", selectedWalletFilter === null ? "bg-blue-50 ring-1 ring-blue-200" : "hover:bg-gray-50")}
+                        className={cn("w-full flex items-center justify-between p-3 rounded-xl transition-colors text-left", selectedWalletFilter === null ? "bg-blue-50 dark:bg-blue-900/20 ring-1 ring-blue-200 dark:ring-blue-800" : "hover:bg-gray-50 dark:hover:bg-gray-800")}
                       >
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-600">
+                          <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-300">
                             <Landmark className="w-5 h-5" />
                           </div>
-                          <span className="font-medium text-gray-900">Semua Dompet</span>
+                          <span className="font-medium text-gray-900 dark:text-white">Semua Dompet</span>
                         </div>
-                        <span className="font-semibold text-gray-900">{formatRupiah(totalBalance)}</span>
+                        <span className="font-semibold text-gray-900 dark:text-white">{formatRupiah(totalBalance)}</span>
                       </button>
                       {wallets.map(wallet => (
-                        <button 
+                        <button
                           key={wallet.id}
                           onClick={() => setSelectedWalletFilter(wallet.id)}
-                          className={cn("w-full flex items-center justify-between p-3 rounded-xl transition-colors text-left", selectedWalletFilter === wallet.id ? "bg-blue-50 ring-1 ring-blue-200" : "hover:bg-gray-50")}
+                          className={cn("w-full flex items-center justify-between p-3 rounded-xl transition-colors text-left", selectedWalletFilter === wallet.id ? "bg-blue-50 dark:bg-blue-900/20 ring-1 ring-blue-200 dark:ring-blue-800" : "hover:bg-gray-50 dark:hover:bg-gray-800")}
                         >
                           <div className="flex items-center gap-3">
                             <div className={cn("w-10 h-10 rounded-full flex items-center justify-center text-white", wallet.color)}>
                               {getIconComponent(wallet.icon)}
                             </div>
-                            <div className="font-medium text-gray-900">{wallet.name}</div>
+                            <div className="font-medium text-gray-900 dark:text-white">{wallet.name}</div>
                           </div>
-                          <div className="font-semibold text-gray-900">{formatRupiah(wallet.balance)}</div>
+                          <div className="font-semibold text-gray-900 dark:text-white">{formatRupiah(wallet.balance)}</div>
                         </button>
                       ))}
-                      <button 
+                      <button
                         onClick={() => setAddWalletModalOpen(true)}
-                        className="w-full mt-2 py-3 border-2 border-dashed border-gray-200 rounded-xl text-gray-500 font-medium hover:border-blue-300 hover:text-blue-600 transition-colors flex items-center justify-center gap-2"
+                        className="w-full mt-2 py-3 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl text-gray-500 dark:text-gray-400 font-medium hover:border-blue-300 hover:text-blue-600 dark:text-blue-400 transition-colors flex items-center justify-center gap-2"
                       >
                         <Plus className="w-4 h-4" /> Tambah Dompet
                       </button>
@@ -1096,26 +1111,26 @@ export default function App() {
             ) : currentView === 'reports' ? (
               <ReportsView transactions={transactions} categories={categories} isDarkTheme={isDarkTheme} />
             ) : currentView === 'transactions' ? (
-              <TransactionsView 
-                transactions={filteredTransactions} 
-                categories={categories} 
+              <TransactionsView
+                transactions={filteredTransactions}
+                categories={categories}
                 wallets={wallets}
                 onDelete={handleDeleteTransaction}
                 onEdit={(tx) => setEditingTransaction(tx)}
                 onShowConfirm={confirmAction}
               />
             ) : currentView === 'wallets' ? (
-              <WalletsManageView 
-                wallets={wallets} 
-                onEdit={(w) => setEditingWallet(w)} 
+              <WalletsManageView
+                wallets={wallets}
+                onEdit={(w) => setEditingWallet(w)}
                 onDelete={handleDeleteWallet}
                 onAdd={() => setAddWalletModalOpen(true)}
                 onShowConfirm={confirmAction}
               />
             ) : (
-              <CategoriesManageView 
-                categories={categories} 
-                onEdit={(c) => setEditingCategory(c)} 
+              <CategoriesManageView
+                categories={categories}
+                onEdit={(c) => setEditingCategory(c)}
                 onDelete={handleDeleteCategory}
                 onAdd={() => setAddCategoryModalOpen(true)}
                 onShowConfirm={confirmAction}
@@ -1127,57 +1142,57 @@ export default function App() {
 
       {/* --- ADD TRANSACTION MODAL --- */}
       {(isAddModalOpen || editingTransaction) && (
-        <AddTransactionModal 
-          wallets={wallets} 
-          categories={categories} 
+        <AddTransactionModal
+          wallets={wallets}
+          categories={categories}
           editingTransaction={editingTransaction}
           onClose={() => {
             setAddModalOpen(false);
             setEditingTransaction(null);
-          }} 
+          }}
           onSave={(tx) => {
             if ('id' in tx) {
               handleUpdateTransaction(tx as Transaction);
             } else {
               handleAddTransaction(tx);
             }
-          }} 
+          }}
         />
       )}
 
       {/* --- ADD WALLET MODAL --- */}
       {(isAddWalletModalOpen || editingWallet) && (
-        <AddWalletModal 
+        <AddWalletModal
           editingWallet={editingWallet}
           onClose={() => {
             setAddWalletModalOpen(false);
             setEditingWallet(null);
-          }} 
+          }}
           onSave={(w) => {
             if ('id' in w) {
               handleUpdateWallet(w as Wallet);
             } else {
               handleAddWallet(w);
             }
-          }} 
+          }}
         />
       )}
 
       {/* --- ADD CATEGORY MODAL --- */}
       {(isAddCategoryModalOpen || editingCategory) && (
-        <AddCategoryModal 
+        <AddCategoryModal
           editingCategory={editingCategory}
           onClose={() => {
             setAddCategoryModalOpen(false);
             setEditingCategory(null);
-          }} 
+          }}
           onSave={(c) => {
             if ('id' in c) {
               handleUpdateCategory(c as Category);
             } else {
               handleAddCategory(c);
             }
-          }} 
+          }}
         />
       )}
 
@@ -1185,22 +1200,22 @@ export default function App() {
       {confirmDialog.isOpen && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))} />
-          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200">
+          <div className="relative bg-white dark:bg-gray-900 rounded-2xl shadow-xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="p-6 text-center">
-              <div className={cn("w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4", confirmDialog.isDestructive ? "bg-rose-100 text-rose-600" : "bg-blue-100 text-blue-600")}>
+              <div className={cn("w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4", confirmDialog.isDestructive ? "bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400" : "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400")}>
                 <AlertCircle className="w-6 h-6" />
               </div>
-              <h3 className="text-lg font-bold text-gray-900 mb-2">{confirmDialog.title}</h3>
-              <p className="text-sm text-gray-500">{confirmDialog.message}</p>
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">{confirmDialog.title}</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{confirmDialog.message}</p>
             </div>
-            <div className="p-4 bg-gray-50 flex gap-3">
-              <button 
+            <div className="p-4 bg-gray-50 dark:bg-gray-800 flex gap-3">
+              <button
                 onClick={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
-                className="flex-1 px-4 py-2.5 bg-white border border-gray-200 text-gray-700 font-medium rounded-xl hover:bg-gray-50 transition-colors"
+                className="flex-1 px-4 py-2.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 font-medium rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
               >
                 Batal
               </button>
-              <button 
+              <button
                 onClick={() => {
                   confirmDialog.onConfirm();
                   setConfirmDialog(prev => ({ ...prev, isOpen: false }));
@@ -1221,7 +1236,7 @@ export default function App() {
 }
 
 // --- REPORTS VIEW COMPONENT ---
-function ReportsView({ 
+function ReportsView({
   transactions,
   categories,
   isDarkTheme
@@ -1272,7 +1287,7 @@ function ReportsView({
       const start = period === 'thisMonth' ? startOfMonth(now) : startOfMonth(new Date(now.getFullYear(), now.getMonth() - 1, 1));
       const end = period === 'thisMonth' ? endOfMonth(now) : endOfMonth(new Date(now.getFullYear(), now.getMonth() - 1, 1));
       const days = eachDayOfInterval({ start, end });
-      
+
       return days.map(d => {
         const dayTxs = filteredData.filter(t => isSameDay(parseISO(t.date), d));
         return {
@@ -1319,24 +1334,24 @@ function ReportsView({
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       {/* Period Selector */}
-      <div className="flex justify-between items-center bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
-        <h2 className="text-lg font-bold text-gray-900">Analisis Keuangan</h2>
-        <div className="flex bg-gray-100 p-1 rounded-xl">
-          <button 
+      <div className="flex justify-between items-center bg-white dark:bg-gray-900 p-4 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
+        <h2 className="text-lg font-bold text-gray-900 dark:text-white">Analisis Keuangan</h2>
+        <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-xl">
+          <button
             onClick={() => setPeriod('thisMonth')}
-            className={cn("px-4 py-1.5 text-sm font-medium rounded-lg transition-all", period === 'thisMonth' ? "bg-white text-blue-600 shadow-sm" : "text-gray-500")}
+            className={cn("px-4 py-1.5 text-sm font-medium rounded-lg transition-all", period === 'thisMonth' ? "bg-white dark:bg-gray-900 text-blue-600 dark:text-blue-400 shadow-sm" : "text-gray-500 dark:text-gray-400")}
           >
             Bulan Ini
           </button>
-          <button 
+          <button
             onClick={() => setPeriod('lastMonth')}
-            className={cn("px-4 py-1.5 text-sm font-medium rounded-lg transition-all", period === 'lastMonth' ? "bg-white text-blue-600 shadow-sm" : "text-gray-500")}
+            className={cn("px-4 py-1.5 text-sm font-medium rounded-lg transition-all", period === 'lastMonth' ? "bg-white dark:bg-gray-900 text-blue-600 dark:text-blue-400 shadow-sm" : "text-gray-500 dark:text-gray-400")}
           >
             Bulan Lalu
           </button>
-          <button 
+          <button
             onClick={() => setPeriod('thisYear')}
-            className={cn("px-4 py-1.5 text-sm font-medium rounded-lg transition-all", period === 'thisYear' ? "bg-white text-blue-600 shadow-sm" : "text-gray-500")}
+            className={cn("px-4 py-1.5 text-sm font-medium rounded-lg transition-all", period === 'thisYear' ? "bg-white dark:bg-gray-900 text-blue-600 dark:text-blue-400 shadow-sm" : "text-gray-500 dark:text-gray-400")}
           >
             Tahun Ini
           </button>
@@ -1345,17 +1360,17 @@ function ReportsView({
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-          <div className="text-sm font-medium text-gray-500 mb-1">Total Pemasukan</div>
-          <div className="text-2xl font-bold text-emerald-600">{formatRupiah(totalIncome)}</div>
+        <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
+          <div className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Total Pemasukan</div>
+          <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{formatRupiah(totalIncome)}</div>
         </div>
-        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-          <div className="text-sm font-medium text-gray-500 mb-1">Total Pengeluaran</div>
-          <div className="text-2xl font-bold text-rose-600">{formatRupiah(totalExpense)}</div>
+        <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
+          <div className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Total Pengeluaran</div>
+          <div className="text-2xl font-bold text-rose-600 dark:text-rose-400">{formatRupiah(totalExpense)}</div>
         </div>
-        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-          <div className="text-sm font-medium text-gray-500 mb-1">Selisih</div>
-          <div className={cn("text-2xl font-bold", totalIncome - totalExpense >= 0 ? "text-blue-600" : "text-rose-600")}>
+        <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
+          <div className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Selisih</div>
+          <div className={cn("text-2xl font-bold", totalIncome - totalExpense >= 0 ? "text-blue-600 dark:text-blue-400" : "text-rose-600 dark:text-rose-400")}>
             {formatRupiah(totalIncome - totalExpense)}
           </div>
         </div>
@@ -1363,16 +1378,16 @@ function ReportsView({
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Trend Chart */}
-        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-          <h3 className="text-lg font-bold text-gray-900 mb-6">Tren Arus Kas</h3>
+        <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6">Tren Arus Kas</h3>
           <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <ReBarChart data={barChartData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chartPalette.grid} />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 12, fill: chartPalette.axis}} />
-                <YAxis axisLine={false} tickLine={false} tick={{fontSize: 12, fill: chartPalette.axis}} tickFormatter={(value) => `Rp${value/1000}k`} />
-                <Tooltip 
-                  cursor={{fill: chartPalette.cursor}}
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: chartPalette.axis }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: chartPalette.axis }} tickFormatter={(value) => `Rp${value / 1000}k`} />
+                <Tooltip
+                  cursor={{ fill: chartPalette.cursor }}
                   contentStyle={{
                     borderRadius: '12px',
                     border: `1px solid ${chartPalette.tooltipBorder}`,
@@ -1390,8 +1405,8 @@ function ReportsView({
         </div>
 
         {/* Category Chart */}
-        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-          <h3 className="text-lg font-bold text-gray-900 mb-6">Pengeluaran Per Kategori</h3>
+        <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6">Pengeluaran Per Kategori</h3>
           <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <RePieChart>
@@ -1408,7 +1423,7 @@ function ReportsView({
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip 
+                <Tooltip
                   contentStyle={{
                     borderRadius: '12px',
                     border: `1px solid ${chartPalette.tooltipBorder}`,
@@ -1418,7 +1433,7 @@ function ReportsView({
                   }}
                   formatter={(value: number) => formatRupiah(value)}
                 />
-                <Legend verticalAlign="bottom" height={36} wrapperStyle={{ color: chartPalette.axis }}/>
+                <Legend verticalAlign="bottom" height={36} wrapperStyle={{ color: chartPalette.axis }} />
               </RePieChart>
             </ResponsiveContainer>
           </div>
@@ -1429,16 +1444,16 @@ function ReportsView({
 }
 
 // --- TRANSACTIONS VIEW COMPONENT ---
-function TransactionsView({ 
-  transactions, 
-  categories, 
-  wallets, 
+function TransactionsView({
+  transactions,
+  categories,
+  wallets,
   onDelete,
   onEdit,
   onShowConfirm
-}: { 
-  transactions: Transaction[], 
-  categories: Category[], 
+}: {
+  transactions: Transaction[],
+  categories: Category[],
   wallets: Wallet[],
   onDelete: (id: string) => void,
   onEdit: (tx: Transaction) => void,
@@ -1454,7 +1469,7 @@ function TransactionsView({
     return transactions.filter(tx => {
       const matchType = filterType === 'all' || tx.type === filterType;
       const matchCategory = filterCategory === 'all' || tx.categoryId === filterCategory;
-      
+
       const txDate = new Date(tx.date);
       const matchStartDate = !startDate || txDate >= new Date(startDate);
       const matchEndDate = !endDate || txDate <= new Date(endDate + 'T23:59:59');
@@ -1492,14 +1507,14 @@ function TransactionsView({
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-20">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Riwayat Transaksi</h2>
-        <button 
+        <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Riwayat Transaksi</h2>
+        <button
           onClick={() => setShowFilters(!showFilters)}
           className={cn(
             "flex items-center gap-2 px-4 py-2 rounded-xl border transition-all text-sm font-medium",
             showFilters || filterType !== 'all' || filterCategory !== 'all' || startDate || endDate
-              ? "bg-blue-50 border-blue-200 text-blue-600" 
-              : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+              ? "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400"
+              : "bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
           )}
         >
           <Filter className="w-4 h-4" />
@@ -1508,14 +1523,14 @@ function TransactionsView({
       </div>
 
       {showFilters && (
-        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm animate-in fade-in slide-in-from-top-4 duration-200">
+        <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm animate-in fade-in slide-in-from-top-4 duration-200">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Tipe</label>
-              <select 
-                value={filterType} 
+              <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Tipe</label>
+              <select
+                value={filterType}
                 onChange={(e) => setFilterType(e.target.value as any)}
-                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-white"
               >
                 <option value="all">Semua Tipe</option>
                 <option value="expense">Pengeluaran</option>
@@ -1525,12 +1540,12 @@ function TransactionsView({
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Kategori</label>
-              <select 
-                value={filterCategory} 
+              <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Kategori</label>
+              <select
+                value={filterCategory}
                 onChange={(e) => setFilterCategory(e.target.value)}
                 disabled={filterType === 'transfer'}
-                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none disabled:opacity-50"
+                className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none disabled:opacity-50 text-gray-900 dark:text-white"
               >
                 <option value="all">Semua Kategori</option>
                 {availableCategories.map(c => (
@@ -1540,42 +1555,42 @@ function TransactionsView({
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Mulai Dari</label>
+              <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Mulai Dari</label>
               <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input 
-                  type="date" 
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
+                <input
+                  type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full pl-9 pr-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-white"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Sampai Dengan</label>
+              <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Sampai Dengan</label>
               <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input 
-                  type="date" 
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
+                <input
+                  type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full pl-9 pr-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-white"
                 />
               </div>
             </div>
           </div>
 
           <div className="mt-6 flex justify-end gap-3">
-            <button 
+            <button
               onClick={resetFilters}
-              className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900"
+              className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:text-white"
             >
               Reset Filter
             </button>
-            <button 
+            <button
               onClick={() => setShowFilters(false)}
-              className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-xl hover:bg-gray-800"
+              className="px-4 py-2 bg-gray-900 dark:bg-gray-700 text-white text-sm font-medium rounded-xl hover:bg-gray-800 dark:hover:bg-gray-600"
             >
               Terapkan
             </button>
@@ -1583,16 +1598,16 @@ function TransactionsView({
         </div>
       )}
 
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="divide-y divide-gray-50">
+      <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
+        <div className="divide-y divide-gray-50 dark:divide-gray-800">
           {filteredTransactions.length === 0 ? (
-            <div className="p-12 text-center text-gray-500">
-              <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
+            <div className="p-12 text-center text-gray-500 dark:text-gray-400">
+              <div className="w-16 h-16 bg-gray-50 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
                 <ArrowRightLeft className="w-8 h-8 text-gray-300" />
               </div>
               <p>Tidak ada transaksi yang sesuai dengan filter.</p>
               {(filterType !== 'all' || filterCategory !== 'all' || startDate || endDate) && (
-                <button onClick={resetFilters} className="mt-4 text-blue-600 font-medium hover:underline">
+                <button onClick={resetFilters} className="mt-4 text-blue-600 dark:text-blue-400 font-medium hover:underline">
                   Bersihkan Filter
                 </button>
               )}
@@ -1606,34 +1621,34 @@ function TransactionsView({
               const toWallet = wallets.find(w => w.id === tx.toWalletId);
 
               return (
-                <div key={tx.id} className={cn("p-4 sm:p-5 flex items-center gap-3 sm:gap-4 hover:bg-gray-50 transition-colors group", tx.status === 'canceled' && "opacity-60")}>
-                  <div className={cn("w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center shrink-0", isTransfer ? "bg-gray-100 text-gray-600" : category?.color || "bg-gray-100 text-gray-600")}>
+                <div key={tx.id} className={cn("p-4 sm:p-5 flex items-center gap-3 sm:gap-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group", tx.status === 'canceled' && "opacity-60")}>
+                  <div className={cn("w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center shrink-0", isTransfer ? "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300" : category?.color || "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300")}>
                     {isTransfer ? <ArrowRightLeft className="w-5 h-5 sm:w-6 sm:h-6" /> : getIconComponent(category?.icon || 'WalletIcon')}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className={cn("font-bold sm:font-medium text-gray-900 truncate text-sm sm:text-base flex items-center gap-2", tx.status === 'canceled' && "line-through text-gray-500")}>
+                    <div className={cn("font-bold sm:font-medium text-gray-900 dark:text-white truncate text-sm sm:text-base flex items-center gap-2", tx.status === 'canceled' && "line-through text-gray-500 dark:text-gray-400")}>
                       {tx.note || (isTransfer ? 'Transfer' : category?.name)}
-                      {tx.status === 'canceled' && <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded font-medium no-underline">Dibatalkan</span>}
+                      {tx.status === 'canceled' && <span className="text-[10px] bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 px-2 py-0.5 rounded font-medium no-underline">Dibatalkan</span>}
                     </div>
-                    <div className="text-[10px] sm:text-sm text-gray-500 flex flex-wrap items-center gap-x-1.5 mt-0.5">
+                    <div className="text-[10px] sm:text-sm text-gray-500 dark:text-gray-400 flex flex-wrap items-center gap-x-1.5 mt-0.5">
                       <span>{format(parseISO(tx.date), 'dd MMM yyyy, HH:mm', { locale: id })}</span>
                       <span className="hidden sm:inline">•</span>
                       <span className="truncate">{isTransfer ? `${wallet?.name} → ${toWallet?.name}` : wallet?.name}</span>
                     </div>
                   </div>
                   <div className="flex flex-col sm:flex-row items-end sm:items-center gap-1 sm:gap-4">
-                    <div className={cn("font-bold sm:font-semibold whitespace-nowrap text-right text-sm sm:text-base", tx.status === 'canceled' ? "text-gray-400 line-through" : isIncome ? "text-emerald-600" : isTransfer ? "text-gray-900" : "text-rose-600")}>
+                    <div className={cn("font-bold sm:font-semibold whitespace-nowrap text-right text-sm sm:text-base", tx.status === 'canceled' ? "text-gray-400 dark:text-gray-500 line-through" : isIncome ? "text-emerald-600 dark:text-emerald-400" : isTransfer ? "text-gray-900 dark:text-white" : "text-rose-600 dark:text-rose-400")}>
                       {isIncome ? '+' : isTransfer ? '' : '-'}{formatRupiah(tx.amount)}
                     </div>
                     {tx.status !== 'canceled' && (
                       <div className="flex items-center gap-1 sm:gap-2">
-                        <button 
+                        <button
                           onClick={() => onEdit(tx)}
-                          className="p-1.5 sm:p-2 text-gray-400 sm:text-gray-300 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all sm:opacity-0 sm:group-hover:opacity-100"
+                          className="p-1.5 sm:p-2 text-gray-400 dark:text-gray-500 sm:text-gray-300 hover:text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all sm:opacity-0 sm:group-hover:opacity-100"
                         >
                           <Pencil className="w-3.5 h-3.5 sm:w-4 h-4" />
                         </button>
-                        <button 
+                        <button
                           onClick={() => {
                             onShowConfirm(
                               'Batalkan Transaksi',
@@ -1641,7 +1656,7 @@ function TransactionsView({
                               () => onDelete(tx.id)
                             );
                           }}
-                          className="p-1.5 sm:p-2 text-gray-400 sm:text-gray-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all sm:opacity-0 sm:group-hover:opacity-100"
+                          className="p-1.5 sm:p-2 text-gray-400 dark:text-gray-500 sm:text-gray-300 hover:text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-all sm:opacity-0 sm:group-hover:opacity-100"
                         >
                           <Trash2 className="w-3.5 h-3.5 sm:w-4 h-4" />
                         </button>
@@ -1659,15 +1674,15 @@ function TransactionsView({
 }
 
 // --- WALLETS MANAGE VIEW ---
-function WalletsManageView({ 
-  wallets, 
-  onEdit, 
+function WalletsManageView({
+  wallets,
+  onEdit,
   onDelete,
   onAdd,
   onShowConfirm
-}: { 
-  wallets: Wallet[], 
-  onEdit: (w: Wallet) => void, 
+}: {
+  wallets: Wallet[],
+  onEdit: (w: Wallet) => void,
   onDelete: (id: string) => void,
   onAdd: () => void,
   onShowConfirm: (title: string, message: string, onConfirm: () => void) => void
@@ -1675,8 +1690,8 @@ function WalletsManageView({
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-gray-900">Kelola Dompet</h2>
-        <button 
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Kelola Dompet</h2>
+        <button
           onClick={onAdd}
           className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl font-medium hover:bg-blue-700 transition-colors"
         >
@@ -1686,24 +1701,24 @@ function WalletsManageView({
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {wallets.map(wallet => (
-          <div key={wallet.id} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between group">
+          <div key={wallet.id} className="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm flex items-center justify-between group">
             <div className="flex items-center gap-4">
               <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center text-white", wallet.color)}>
                 {getIconComponent(wallet.icon)}
               </div>
               <div>
-                <div className="font-bold text-gray-900">{wallet.name}</div>
-                <div className="text-sm text-gray-500">{formatRupiah(wallet.balance)}</div>
+                <div className="font-bold text-gray-900 dark:text-white">{wallet.name}</div>
+                <div className="text-sm text-gray-500 dark:text-gray-400">{formatRupiah(wallet.balance)}</div>
               </div>
             </div>
             <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button 
+              <button
                 onClick={() => onEdit(wallet)}
-                className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                className="p-2 text-gray-400 dark:text-gray-500 hover:text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
               >
                 <Pencil className="w-4 h-4" />
               </button>
-              <button 
+              <button
                 onClick={() => {
                   onShowConfirm(
                     'Hapus Dompet',
@@ -1711,7 +1726,7 @@ function WalletsManageView({
                     () => onDelete(wallet.id)
                   );
                 }}
-                className="p-2 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                className="p-2 text-gray-400 dark:text-gray-500 hover:text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-colors"
               >
                 <Trash2 className="w-4 h-4" />
               </button>
@@ -1724,15 +1739,15 @@ function WalletsManageView({
 }
 
 // --- CATEGORIES MANAGE VIEW ---
-function CategoriesManageView({ 
-  categories, 
-  onEdit, 
+function CategoriesManageView({
+  categories,
+  onEdit,
   onDelete,
   onAdd,
   onShowConfirm
-}: { 
-  categories: Category[], 
-  onEdit: (c: Category) => void, 
+}: {
+  categories: Category[],
+  onEdit: (c: Category) => void,
   onDelete: (id: string) => void,
   onAdd: () => void,
   onShowConfirm: (title: string, message: string, onConfirm: () => void) => void
@@ -1744,8 +1759,8 @@ function CategoriesManageView({
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-gray-900">Kelola Kategori</h2>
-        <button 
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Kelola Kategori</h2>
+        <button
           onClick={onAdd}
           className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl font-medium hover:bg-blue-700 transition-colors"
         >
@@ -1753,16 +1768,16 @@ function CategoriesManageView({
         </button>
       </div>
 
-      <div className="flex bg-white p-1 rounded-xl border border-gray-100 w-fit">
-        <button 
+      <div className="flex bg-white dark:bg-gray-900 p-1 rounded-xl border border-gray-100 dark:border-gray-800 w-fit">
+        <button
           onClick={() => setTypeFilter('expense')}
-          className={cn("px-6 py-2 text-sm font-medium rounded-lg transition-all", typeFilter === 'expense' ? "bg-gray-900 text-white shadow-sm" : "text-gray-500 hover:text-gray-700")}
+          className={cn("px-6 py-2 text-sm font-medium rounded-lg transition-all", typeFilter === 'expense' ? "bg-gray-900 dark:bg-gray-700 text-white shadow-sm" : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-200")}
         >
           Pengeluaran
         </button>
-        <button 
+        <button
           onClick={() => setTypeFilter('income')}
-          className={cn("px-6 py-2 text-sm font-medium rounded-lg transition-all", typeFilter === 'income' ? "bg-gray-900 text-white shadow-sm" : "text-gray-500 hover:text-gray-700")}
+          className={cn("px-6 py-2 text-sm font-medium rounded-lg transition-all", typeFilter === 'income' ? "bg-gray-900 dark:bg-gray-700 text-white shadow-sm" : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-200")}
         >
           Pemasukan
         </button>
@@ -1770,21 +1785,21 @@ function CategoriesManageView({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {filtered.map(cat => (
-          <div key={cat.id} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between group">
+          <div key={cat.id} className="bg-white dark:bg-gray-900 p-4 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm flex items-center justify-between group">
             <div className="flex items-center gap-3">
               <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", cat.color)}>
                 {getIconComponent(cat.icon)}
               </div>
-              <span className="font-medium text-gray-900">{cat.name}</span>
+              <span className="font-medium text-gray-900 dark:text-white">{cat.name}</span>
             </div>
             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button 
+              <button
                 onClick={() => onEdit(cat)}
-                className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                className="p-2 text-gray-400 dark:text-gray-500 hover:text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
               >
                 <Pencil className="w-4 h-4" />
               </button>
-              <button 
+              <button
                 onClick={() => {
                   onShowConfirm(
                     'Hapus Kategori',
@@ -1792,7 +1807,7 @@ function CategoriesManageView({
                     () => onDelete(cat.id)
                   );
                 }}
-                className="p-2 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                className="p-2 text-gray-400 dark:text-gray-500 hover:text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-colors"
               >
                 <Trash2 className="w-4 h-4" />
               </button>
@@ -1805,27 +1820,27 @@ function CategoriesManageView({
 }
 
 // --- ADD CATEGORY MODAL ---
-function AddCategoryModal({ 
+function AddCategoryModal({
   editingCategory,
-  onClose, 
-  onSave 
-}: { 
+  onClose,
+  onSave
+}: {
   editingCategory: Category | null,
-  onClose: () => void, 
-  onSave: (cat: Category | Omit<Category, 'id'>) => void 
+  onClose: () => void,
+  onSave: (cat: Category | Omit<Category, 'id'>) => void
 }) {
   const [name, setName] = useState(editingCategory?.name || '');
   const [type, setType] = useState<'expense' | 'income'>(editingCategory?.type || 'expense');
   const [icon, setIcon] = useState(editingCategory?.icon || 'Tag');
-  const [color, setColor] = useState(editingCategory?.color || 'text-blue-600 bg-blue-100');
+  const [color, setColor] = useState(editingCategory?.color || 'text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30');
 
   const COLORS = [
-    { name: 'Blue', value: 'text-blue-600 bg-blue-100' },
-    { name: 'Emerald', value: 'text-emerald-600 bg-emerald-100' },
-    { name: 'Rose', value: 'text-rose-600 bg-rose-100' },
-    { name: 'Amber', value: 'text-amber-600 bg-amber-100' },
-    { name: 'Purple', value: 'text-purple-600 bg-purple-100' },
-    { name: 'Orange', value: 'text-orange-600 bg-orange-100' },
+    { name: 'Blue', value: 'text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30' },
+    { name: 'Emerald', value: 'text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/30' },
+    { name: 'Rose', value: 'text-rose-600 dark:text-rose-400 bg-rose-100 dark:bg-rose-900/30' },
+    { name: 'Amber', value: 'text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30' },
+    { name: 'Purple', value: 'text-purple-600 dark:text-purple-400 bg-purple-100 dark:bg-purple-900/30' },
+    { name: 'Orange', value: 'text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/30' },
   ];
 
   const ICONS = [
@@ -1840,7 +1855,7 @@ function AddCategoryModal({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name) return;
-    
+
     const data = {
       name,
       type,
@@ -1858,45 +1873,45 @@ function AddCategoryModal({
   return (
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-t-3xl sm:rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-200">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-gray-900">{editingCategory ? 'Edit Kategori' : 'Tambah Kategori'}</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 rounded-md hover:bg-gray-100">
+      <div className="relative bg-white dark:bg-gray-900 rounded-t-3xl sm:rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-200">
+        <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{editingCategory ? 'Edit Kategori' : 'Tambah Kategori'}</h3>
+          <button onClick={onClose} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:text-gray-300 p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700">
             <X className="w-5 h-5" />
           </button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          <div className="flex p-1 bg-gray-100 rounded-xl">
-            <button 
+          <div className="flex p-1 bg-gray-100 dark:bg-gray-800 rounded-xl">
+            <button
               type="button"
               onClick={() => setType('expense')}
-              className={cn("flex-1 py-2 text-sm font-medium rounded-lg transition-all", type === 'expense' ? "bg-white text-gray-900 shadow-sm" : "text-gray-500")}
+              className={cn("flex-1 py-2 text-sm font-medium rounded-lg transition-all", type === 'expense' ? "bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm" : "text-gray-500 dark:text-gray-400")}
             >
               Pengeluaran
             </button>
-            <button 
+            <button
               type="button"
               onClick={() => setType('income')}
-              className={cn("flex-1 py-2 text-sm font-medium rounded-lg transition-all", type === 'income' ? "bg-white text-gray-900 shadow-sm" : "text-gray-500")}
+              className={cn("flex-1 py-2 text-sm font-medium rounded-lg transition-all", type === 'income' ? "bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm" : "text-gray-500 dark:text-gray-400")}
             >
               Pemasukan
             </button>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Nama Kategori</label>
-            <input 
-              type="text" 
-              required 
-              value={name} 
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Nama Kategori</label>
+            <input
+              type="text"
+              required
+              value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Cth: Hiburan"
-              className="block w-full px-3 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              className="block w-full px-3 py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Warna</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Warna</label>
             <div className="flex flex-wrap gap-3">
               {COLORS.map(c => (
                 <button
@@ -1914,7 +1929,7 @@ function AddCategoryModal({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Ikon</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Ikon</label>
             <div className="flex flex-wrap gap-3">
               {ICONS.map(i => (
                 <button
@@ -1923,7 +1938,7 @@ function AddCategoryModal({
                   onClick={() => setIcon(i.value)}
                   className={cn(
                     "w-10 h-10 rounded-xl flex items-center justify-center transition-all border-2",
-                    icon === i.value ? "border-blue-500 bg-blue-50 text-blue-600" : "border-gray-100 text-gray-400 hover:border-gray-200"
+                    icon === i.value ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400" : "border-gray-100 dark:border-gray-800 text-gray-400 dark:text-gray-500 hover:border-gray-200 dark:border-gray-700"
                   )}
                 >
                   {getIconComponent(i.value)}
@@ -1933,7 +1948,7 @@ function AddCategoryModal({
           </div>
 
           <div className="pt-4 flex gap-3">
-            <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50">
+            <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800">
               Batal
             </button>
             <button type="submit" className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-xl hover:bg-blue-700">
@@ -1947,14 +1962,14 @@ function AddCategoryModal({
 }
 
 // --- ADD WALLET MODAL ---
-function AddWalletModal({ 
+function AddWalletModal({
   editingWallet,
-  onClose, 
-  onSave 
-}: { 
+  onClose,
+  onSave
+}: {
   editingWallet: Wallet | null,
-  onClose: () => void, 
-  onSave: (wallet: Wallet | Omit<Wallet, 'id'>) => void 
+  onClose: () => void,
+  onSave: (wallet: Wallet | Omit<Wallet, 'id'>) => void
 }) {
   const [name, setName] = useState(editingWallet?.name || '');
   const [balance, setBalance] = useState(editingWallet?.balance.toString() || '');
@@ -1979,7 +1994,7 @@ function AddWalletModal({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !balance) return;
-    
+
     const data = {
       name,
       balance: Number(balance),
@@ -1997,43 +2012,43 @@ function AddWalletModal({
   return (
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-t-3xl sm:rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-200">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-gray-900">{editingWallet ? 'Edit Dompet' : 'Tambah Dompet Baru'}</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 rounded-md hover:bg-gray-100">
+      <div className="relative bg-white dark:bg-gray-900 rounded-t-3xl sm:rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-200">
+        <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{editingWallet ? 'Edit Dompet' : 'Tambah Dompet Baru'}</h3>
+          <button onClick={onClose} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:text-gray-300 p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700">
             <X className="w-5 h-5" />
           </button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Nama Dompet</label>
-            <input 
-              type="text" 
-              required 
-              value={name} 
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Nama Dompet</label>
+            <input
+              type="text"
+              required
+              value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Cth: Tabungan Haji"
-              className="block w-full px-3 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              className="block w-full px-3 py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Saldo Awal</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Saldo Awal</label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <span className="text-gray-500 sm:text-sm">Rp</span>
+                <span className="text-gray-500 dark:text-gray-400 sm:text-sm">Rp</span>
               </div>
-              <input 
-                type="number" 
-                required 
-                value={balance} 
+              <input
+                type="number"
+                required
+                value={balance}
                 onChange={(e) => setBalance(e.target.value)}
                 placeholder="0"
-                className="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                className="block w-full pl-10 pr-3 py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
               />
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Warna</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Warna</label>
             <div className="flex flex-wrap gap-3">
               {COLORS.map(c => (
                 <button
@@ -2050,7 +2065,7 @@ function AddWalletModal({
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Ikon</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Ikon</label>
             <div className="flex gap-3">
               {ICONS.map(i => (
                 <button
@@ -2059,7 +2074,7 @@ function AddWalletModal({
                   onClick={() => setIcon(i.value)}
                   className={cn(
                     "w-12 h-12 rounded-xl flex items-center justify-center transition-all border-2",
-                    icon === i.value ? "border-blue-500 bg-blue-50 text-blue-600" : "border-gray-100 text-gray-400 hover:border-gray-200"
+                    icon === i.value ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400" : "border-gray-100 dark:border-gray-800 text-gray-400 dark:text-gray-500 hover:border-gray-200 dark:border-gray-700"
                   )}
                 >
                   {getIconComponent(i.value)}
@@ -2068,7 +2083,7 @@ function AddWalletModal({
             </div>
           </div>
           <div className="pt-4 flex gap-3">
-            <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50">
+            <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800">
               Batal
             </button>
             <button type="submit" className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-xl hover:bg-blue-700">
@@ -2081,18 +2096,18 @@ function AddWalletModal({
   );
 }
 
-function AddTransactionModal({ 
-  wallets, 
-  categories, 
+function AddTransactionModal({
+  wallets,
+  categories,
   editingTransaction,
-  onClose, 
-  onSave 
-}: { 
-  wallets: Wallet[], 
-  categories: Category[], 
+  onClose,
+  onSave
+}: {
+  wallets: Wallet[],
+  categories: Category[],
   editingTransaction: Transaction | null,
-  onClose: () => void, 
-  onSave: (tx: Transaction | Omit<Transaction, 'id'>) => void 
+  onClose: () => void,
+  onSave: (tx: Transaction | Omit<Transaction, 'id'>) => void
 }) {
   const [type, setType] = useState<TransactionType>(editingTransaction?.type || 'expense');
   const [amount, setAmount] = useState(editingTransaction?.amount.toString() || '');
@@ -2113,7 +2128,7 @@ function AddTransactionModal({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!amount || isNaN(Number(amount))) return;
-    
+
     const data = {
       type,
       amount: Number(amount),
@@ -2134,17 +2149,17 @@ function AddTransactionModal({
   return (
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      
-      <div className="relative bg-white rounded-t-3xl sm:rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh] animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-200">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-white">
-          <h3 className="text-lg font-semibold text-gray-900">{editingTransaction ? 'Edit Transaksi' : 'Tambah Transaksi'}</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 rounded-md hover:bg-gray-100">
+
+      <div className="relative bg-white dark:bg-gray-900 rounded-t-3xl sm:rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh] animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-200">
+        <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between bg-white dark:bg-gray-900">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{editingTransaction ? 'Edit Transaksi' : 'Tambah Transaksi'}</h3>
+          <button onClick={onClose} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:text-gray-300 p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <div className="overflow-y-auto p-6">
-          <div className="flex p-1 bg-gray-100 rounded-xl mb-6">
+          <div className="flex p-1 bg-gray-100 dark:bg-gray-800 rounded-xl mb-6">
             {(['expense', 'income', 'transfer'] as const).map((t) => (
               <button
                 key={t}
@@ -2152,7 +2167,7 @@ function AddTransactionModal({
                 onClick={() => setType(t)}
                 className={cn(
                   "flex-1 py-2 text-sm font-medium rounded-lg capitalize transition-all",
-                  type === t ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                  type === t ? "bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm" : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-200"
                 )}
               >
                 {t === 'expense' ? 'Keluar' : t === 'income' ? 'Masuk' : 'Transfer'}
@@ -2162,10 +2177,10 @@ function AddTransactionModal({
 
           <form id="tx-form" onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Jumlah (Rp)</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Jumlah (Rp)</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <span className="text-gray-500 sm:text-sm">Rp</span>
+                  <span className="text-gray-500 dark:text-gray-400 sm:text-sm">Rp</span>
                 </div>
                 <input
                   type="number"
@@ -2173,7 +2188,7 @@ function AddTransactionModal({
                   min="0"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  className="block w-full pl-10 pr-3 py-3 sm:py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-shadow text-lg font-semibold"
+                  className="block w-full pl-10 pr-3 py-3 sm:py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-shadow text-lg font-semibold bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
                   placeholder="0"
                 />
               </div>
@@ -2182,22 +2197,22 @@ function AddTransactionModal({
             {type === 'transfer' ? (
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Dari Dompet</label>
-                  <select value={walletId} onChange={(e) => setWalletId(e.target.value)} className="block w-full px-3 py-3 sm:py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Dari Dompet</label>
+                  <select value={walletId} onChange={(e) => setWalletId(e.target.value)} className="block w-full px-3 py-3 sm:py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-white">
                     {wallets.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Ke Dompet</label>
-                  <select value={toWalletId} onChange={(e) => setToWalletId(e.target.value)} className="block w-full px-3 py-3 sm:py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Ke Dompet</label>
+                  <select value={toWalletId} onChange={(e) => setToWalletId(e.target.value)} className="block w-full px-3 py-3 sm:py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-white">
                     {wallets.filter(w => w.id !== walletId).map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                   </select>
                 </div>
               </div>
             ) : (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Dompet</label>
-                <select value={walletId} onChange={(e) => setWalletId(e.target.value)} className="block w-full px-3 py-3 sm:py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Dompet</label>
+                <select value={walletId} onChange={(e) => setWalletId(e.target.value)} className="block w-full px-3 py-3 sm:py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-white">
                   {wallets.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                 </select>
               </div>
@@ -2205,27 +2220,27 @@ function AddTransactionModal({
 
             {type !== 'transfer' && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Kategori</label>
-                <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} required className="block w-full px-3 py-3 sm:py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Kategori</label>
+                <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} required className="block w-full px-3 py-3 sm:py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-white">
                   {availableCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
             )}
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal</label>
-              <input type="date" required value={date} onChange={(e) => setDate(e.target.value)} className="block w-full px-3 py-3 sm:py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm" />
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Tanggal</label>
+              <input type="date" required value={date} onChange={(e) => setDate(e.target.value)} className="block w-full px-3 py-3 sm:py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-white" />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Catatan</label>
-              <input type="text" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Cth: Makan siang" className="block w-full px-3 py-3 sm:py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm" />
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Catatan</label>
+              <input type="text" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Cth: Makan siang" className="block w-full px-3 py-3 sm:py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-white" />
             </div>
           </form>
         </div>
 
-        <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-end gap-3 pb-safe">
-          <button type="button" onClick={onClose} className="px-4 py-3 sm:py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+        <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800 flex justify-end gap-3 pb-safe">
+          <button type="button" onClick={onClose} className="px-4 py-3 sm:py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
             Batal
           </button>
           <button type="submit" form="tx-form" className="px-4 py-3 sm:py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-xl hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
