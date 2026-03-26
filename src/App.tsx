@@ -1897,7 +1897,9 @@ function TransactionsView({
                       <div className="flex items-center gap-1 sm:gap-2">
                         <button
                           onClick={() => onEdit(tx)}
-                          className="p-1.5 sm:p-2 text-gray-400 dark:text-gray-500 sm:text-gray-300 hover:text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all sm:opacity-0 sm:group-hover:opacity-100"
+                          className="p-1.5 sm:p-2 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                          aria-label="Edit transaksi"
+                          title="Edit transaksi"
                         >
                           <Pencil className="w-3.5 h-3.5 sm:w-4 h-4" />
                         </button>
@@ -1909,7 +1911,9 @@ function TransactionsView({
                               () => onDelete(tx.id)
                             );
                           }}
-                          className="p-1.5 sm:p-2 text-gray-400 dark:text-gray-500 sm:text-gray-300 hover:text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-all sm:opacity-0 sm:group-hover:opacity-100"
+                          className="p-1.5 sm:p-2 text-gray-500 dark:text-gray-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-colors"
+                          aria-label="Batalkan transaksi"
+                          title="Batalkan transaksi"
                         >
                           <Trash2 className="w-3.5 h-3.5 sm:w-4 h-4" />
                         </button>
@@ -1964,10 +1968,12 @@ function WalletsManageView({
                 <div className="text-sm text-gray-500 dark:text-gray-400">{formatRupiah(wallet.balance)}</div>
               </div>
             </div>
-            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="flex items-center gap-2">
               <button
                 onClick={() => onEdit(wallet)}
-                className="p-2 text-gray-400 dark:text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                className="p-2 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                aria-label={`Edit dompet ${wallet.name}`}
+                title={`Edit dompet ${wallet.name}`}
               >
                 <Pencil className="w-4 h-4" />
               </button>
@@ -1979,7 +1985,9 @@ function WalletsManageView({
                     () => onDelete(wallet.id)
                   );
                 }}
-                className="p-2 text-gray-400 dark:text-gray-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-colors"
+                className="p-2 text-gray-500 dark:text-gray-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-colors"
+                aria-label={`Hapus dompet ${wallet.name}`}
+                title={`Hapus dompet ${wallet.name}`}
               >
                 <Trash2 className="w-4 h-4" />
               </button>
@@ -2045,10 +2053,12 @@ function CategoriesManageView({
               </div>
               <span className="font-medium text-gray-900 dark:text-white">{cat.name}</span>
             </div>
-            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="flex items-center gap-1">
               <button
                 onClick={() => onEdit(cat)}
-                className="p-2 text-gray-400 dark:text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                className="p-2 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                aria-label={`Edit kategori ${cat.name}`}
+                title={`Edit kategori ${cat.name}`}
               >
                 <Pencil className="w-4 h-4" />
               </button>
@@ -2060,7 +2070,9 @@ function CategoriesManageView({
                     () => onDelete(cat.id)
                   );
                 }}
-                className="p-2 text-gray-400 dark:text-gray-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-colors"
+                className="p-2 text-gray-500 dark:text-gray-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-colors"
+                aria-label={`Hapus kategori ${cat.name}`}
+                title={`Hapus kategori ${cat.name}`}
               >
                 <Trash2 className="w-4 h-4" />
               </button>
