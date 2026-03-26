@@ -87,7 +87,10 @@ import {
   Cookie,
   Candy,
   Popcorn,
-  AlertCircle
+  AlertCircle,
+  CheckCircle2,
+  LoaderCircle,
+  RefreshCw
 } from 'lucide-react';
 import {
   BarChart as ReBarChart,
@@ -108,7 +111,7 @@ import { useAuth } from './context/AuthContext';
 import { useOnlineStatus } from './hooks/useOnlineStatus';
 import { AppSnapshot, clearAppSnapshot, loadAppSnapshot, saveAppSnapshot } from './lib/appStorage';
 import { isFirebaseConfigured } from './lib/firebase';
-import { ensureUserProfileDocument, loadRemoteSnapshot, seedRemoteSnapshot, syncReferenceData } from './lib/firestoreStore';
+import { ensureUserProfileDocument, loadRemoteSnapshot, seedRemoteSnapshot, subscribeToRemoteSnapshot, syncReferenceData } from './lib/firestoreStore';
 import {
   clearTransactionMutations,
   createQueueItemId,
@@ -135,6 +138,12 @@ const normalizeTransactions = (items: Transaction[]) => {
     syncStatus: transaction.syncStatus ?? 'synced',
   }));
 };
+
+const normalizeSnapshot = (snapshot: AppSnapshot): AppSnapshot => ({
+  wallets: snapshot.wallets,
+  categories: snapshot.categories,
+  transactions: normalizeTransactions(snapshot.transactions),
+});
 
 // --- MOCK DATA ---
 const DEMO_WALLETS: Wallet[] = [
@@ -263,14 +272,26 @@ export default function App() {
   const [theme, setTheme] = useState<ThemeMode>(getInitialTheme);
   const isOnline = useOnlineStatus();
   const syncInFlightRef = React.useRef(false);
+  const syncDialogTimeoutRef = React.useRef<number | null>(null);
   const storageSaveQueueRef = React.useRef(Promise.resolve());
   const referenceSyncQueueRef = React.useRef(Promise.resolve());
   const hasBootstrappedRemoteRef = React.useRef(false);
+  const currentSnapshotRef = React.useRef<AppSnapshot>(DEFAULT_APP_SNAPSHOT);
+  const latestRemoteSnapshotRef = React.useRef<AppSnapshot | null>(null);
+  const pendingSyncCountRef = React.useRef(0);
+  const skipNextReferenceSyncRef = React.useRef(false);
   const [isStorageHydrated, setIsStorageHydrated] = useState(false);
   const [isRemoteReady, setIsRemoteReady] = useState(false);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
   const [syncNotice, setSyncNotice] = useState<string | null>(null);
   const [dismissedSyncBannerKey, setDismissedSyncBannerKey] = useState<string | null>(null);
+  const [syncDialog, setSyncDialog] = useState<null | {
+    tone: 'loading' | 'success' | 'info' | 'error';
+    title: string;
+    description: string;
+    detail?: string;
+    canClose: boolean;
+  }>(null);
   const [wallets, setWallets] = useState<Wallet[]>(DEFAULT_APP_SNAPSHOT.wallets);
   const [categories, setCategories] = useState<Category[]>(DEFAULT_APP_SNAPSHOT.categories);
   const [transactions, setTransactions] = useState<Transaction[]>(DEFAULT_APP_SNAPSHOT.transactions);
@@ -307,6 +328,83 @@ export default function App() {
   const userLabel = user?.displayName?.trim() || user?.email?.split('@')[0] || 'User';
   const userInitial = userLabel.charAt(0).toUpperCase();
 
+  const clearSyncDialogTimeout = React.useCallback(() => {
+    if (syncDialogTimeoutRef.current !== null) {
+      window.clearTimeout(syncDialogTimeoutRef.current);
+      syncDialogTimeoutRef.current = null;
+    }
+  }, []);
+
+  const closeSyncDialog = React.useCallback(() => {
+    clearSyncDialogTimeout();
+    setSyncDialog(null);
+  }, [clearSyncDialogTimeout]);
+
+  const openSyncDialog = React.useCallback((nextDialog: {
+    tone: 'loading' | 'success' | 'info' | 'error';
+    title: string;
+    description: string;
+    detail?: string;
+    canClose?: boolean;
+  }) => {
+    clearSyncDialogTimeout();
+    setSyncDialog({
+      ...nextDialog,
+      canClose: nextDialog.canClose ?? nextDialog.tone !== 'loading',
+    });
+  }, [clearSyncDialogTimeout]);
+
+  const showTemporarySyncDialog = React.useCallback((nextDialog: {
+    tone: 'success' | 'info' | 'error';
+    title: string;
+    description: string;
+    detail?: string;
+  }, durationMs = 2600) => {
+    clearSyncDialogTimeout();
+    setSyncDialog({
+      ...nextDialog,
+      canClose: true,
+    });
+
+    syncDialogTimeoutRef.current = window.setTimeout(() => {
+      setSyncDialog((currentDialog) => {
+        if (
+          currentDialog?.title === nextDialog.title &&
+          currentDialog?.description === nextDialog.description
+        ) {
+          return null;
+        }
+
+        return currentDialog;
+      });
+      syncDialogTimeoutRef.current = null;
+    }, durationMs);
+  }, [clearSyncDialogTimeout]);
+
+  const applyRemoteSnapshot = React.useCallback((snapshot: AppSnapshot) => {
+    const normalizedSnapshot = normalizeSnapshot(snapshot);
+    const nextSerializedSnapshot = serializeSnapshot(normalizedSnapshot);
+    const currentSerializedSnapshot = serializeSnapshot(currentSnapshotRef.current);
+
+    latestRemoteSnapshotRef.current = normalizedSnapshot;
+
+    if (nextSerializedSnapshot === currentSerializedSnapshot) {
+      return;
+    }
+
+    currentSnapshotRef.current = normalizedSnapshot;
+    skipNextReferenceSyncRef.current = true;
+    setWallets(normalizedSnapshot.wallets);
+    setCategories(normalizedSnapshot.categories);
+    setTransactions(normalizedSnapshot.transactions);
+  }, []);
+
+  React.useEffect(() => {
+    return () => {
+      clearSyncDialogTimeout();
+    };
+  }, [clearSyncDialogTimeout]);
+
   // --- PERSISTENCE ---
   React.useEffect(() => {
     if (!userId) {
@@ -341,6 +439,7 @@ export default function App() {
         setWallets(resolvedSnapshot.wallets);
         setCategories(resolvedSnapshot.categories);
         setTransactions(normalizeTransactions(resolvedSnapshot.transactions));
+        currentSnapshotRef.current = normalizeSnapshot(resolvedSnapshot);
         setPendingSyncCount(queuedMutationsCount);
       } catch {
         if (!isCancelled) {
@@ -348,6 +447,7 @@ export default function App() {
           setWallets(DEFAULT_APP_SNAPSHOT.wallets);
           setCategories(DEFAULT_APP_SNAPSHOT.categories);
           setTransactions(DEFAULT_APP_SNAPSHOT.transactions);
+          currentSnapshotRef.current = normalizeSnapshot(DEFAULT_APP_SNAPSHOT);
           setPendingSyncCount(0);
         }
       } finally {
@@ -374,6 +474,14 @@ export default function App() {
 
     const bootstrapRemoteState = async () => {
       try {
+        openSyncDialog({
+          tone: 'loading',
+          title: 'Menyiapkan Data',
+          description: 'Aplikasi sedang memeriksa dan menyelaraskan data akun Anda.',
+          detail: 'Harap tunggu sebentar hingga proses selesai.',
+          canClose: false,
+        });
+
         await ensureUserProfileDocument(user);
 
         const remoteSnapshot = await loadRemoteSnapshot(userId);
@@ -384,50 +492,52 @@ export default function App() {
         const localSnapshot: AppSnapshot = { wallets, categories, transactions };
         const pendingCount = await getPendingTransactionCount(userId);
         const normalizedRemoteSnapshot = remoteSnapshot
-          ? {
-            wallets: remoteSnapshot.wallets,
-            categories: remoteSnapshot.categories,
-            transactions: normalizeTransactions(remoteSnapshot.transactions),
-          }
+          ? normalizeSnapshot(remoteSnapshot)
           : null;
 
         if (!remoteSnapshot) {
           await seedRemoteSnapshot(userId, localSnapshot);
           if (!isCancelled) {
             setSyncNotice('Data awal berhasil disiapkan.');
+            showTemporarySyncDialog({
+              tone: 'success',
+              title: 'Data Awal Siap',
+              description: 'Data awal akun berhasil disiapkan di perangkat ini.',
+              detail: 'Anda sudah bisa mulai menambahkan dompet, kategori, dan transaksi.',
+            }, 3000);
           }
           return;
         }
 
         if (pendingCount === 0 && normalizedRemoteSnapshot && (isLegacyDemoSnapshot(normalizedRemoteSnapshot) || isEmptySnapshot(normalizedRemoteSnapshot))) {
-          setWallets(DEFAULT_APP_SNAPSHOT.wallets);
-          setCategories(DEFAULT_APP_SNAPSHOT.categories);
-          setTransactions(DEFAULT_APP_SNAPSHOT.transactions);
+          applyRemoteSnapshot(DEFAULT_APP_SNAPSHOT);
           await saveAppSnapshot(userId, DEFAULT_APP_SNAPSHOT);
           await seedRemoteSnapshot(userId, DEFAULT_APP_SNAPSHOT);
 
           if (!isCancelled) {
             setSyncNotice('Data awal otomatis berhasil disiapkan untuk akun ini.');
+            showTemporarySyncDialog({
+              tone: 'success',
+              title: 'Data Awal Diperbarui',
+              description: 'Akun ini telah disiapkan dengan data awal yang terbaru.',
+              detail: 'Perangkat sekarang menggunakan data awal yang sama dengan akun Anda.',
+            }, 3000);
           }
           return;
         }
 
-        if (pendingCount === 0 && normalizedRemoteSnapshot && isDefaultSnapshot(localSnapshot)) {
-          setWallets(normalizedRemoteSnapshot.wallets);
-          setCategories(normalizedRemoteSnapshot.categories);
-          setTransactions(normalizedRemoteSnapshot.transactions);
+        if (pendingCount === 0 && normalizedRemoteSnapshot) {
+          applyRemoteSnapshot(normalizedRemoteSnapshot);
           await saveAppSnapshot(userId, normalizedRemoteSnapshot);
 
           if (!isCancelled) {
             setSyncNotice('Data akun berhasil dimuat ke perangkat ini.');
-          }
-          return;
-        }
-
-        if (pendingCount === 0) {
-          await seedRemoteSnapshot(userId, localSnapshot);
-          if (!isCancelled) {
-            setSyncNotice('Perubahan lokal berhasil diperbarui.');
+            showTemporarySyncDialog({
+              tone: 'success',
+              title: 'Data Akun Siap',
+              description: 'Data akun berhasil dimuat dan siap digunakan di perangkat ini.',
+              detail: 'Perubahan terbaru dari akun Anda sudah tersedia.',
+            }, 3000);
           }
           return;
         }
@@ -436,9 +546,25 @@ export default function App() {
           wallets: localSnapshot.wallets,
           categories: localSnapshot.categories,
         });
+
+        if (!isCancelled) {
+          showTemporarySyncDialog({
+            tone: 'info',
+            title: 'Pemeriksaan Selesai',
+            description: 'Data perangkat berhasil diperiksa dan siap dilanjutkan.',
+            detail: 'Perubahan yang tertunda akan disinkronkan bertahap sesuai kondisi koneksi.',
+          });
+        }
       } catch {
         if (!isCancelled) {
           setSyncNotice('Koneksi layanan data sedang bermasalah. Data lokal tetap tersedia.');
+          openSyncDialog({
+            tone: 'error',
+            title: 'Sinkronisasi Tertunda',
+            description: 'Koneksi layanan data sedang bermasalah.',
+            detail: 'Data lokal tetap aman di perangkat dan akan dicoba lagi saat koneksi stabil.',
+            canClose: true,
+          });
         }
       } finally {
         if (!isCancelled) {
@@ -452,7 +578,44 @@ export default function App() {
     return () => {
       isCancelled = true;
     };
-  }, [user, userId, isStorageHydrated, isOnline, wallets, categories, transactions]);
+  }, [user, userId, isStorageHydrated, isOnline, wallets, categories, transactions, applyRemoteSnapshot]);
+
+  React.useEffect(() => {
+    if (!userId || !isStorageHydrated || !isRemoteReady || !isFirebaseConfigured()) {
+      return;
+    }
+
+    return subscribeToRemoteSnapshot(
+      userId,
+      (remoteSnapshot) => {
+        if (!remoteSnapshot) {
+          return;
+        }
+
+        const normalizedSnapshot = normalizeSnapshot(remoteSnapshot);
+        latestRemoteSnapshotRef.current = normalizedSnapshot;
+        const hasRemoteChange = serializeSnapshot(normalizedSnapshot) !== serializeSnapshot(currentSnapshotRef.current);
+
+        if (pendingSyncCountRef.current > 0 || syncInFlightRef.current) {
+          return;
+        }
+
+        applyRemoteSnapshot(normalizedSnapshot);
+
+        if (hasRemoteChange) {
+          showTemporarySyncDialog({
+            tone: 'info',
+            title: 'Data Diperbarui',
+            description: 'Perubahan terbaru berhasil dimuat dari akun Anda.',
+            detail: 'Perangkat ini sekarang memakai data yang paling mutakhir.',
+          });
+        }
+      },
+      () => {
+        setSyncNotice('Perubahan terbaru belum dapat dimuat saat ini.');
+      },
+    );
+  }, [userId, isStorageHydrated, isRemoteReady, applyRemoteSnapshot]);
 
   React.useEffect(() => {
     if (!isStorageHydrated || !userId) {
@@ -464,6 +627,7 @@ export default function App() {
       categories,
       transactions,
     };
+    currentSnapshotRef.current = normalizeSnapshot(snapshotToPersist);
 
     storageSaveQueueRef.current = storageSaveQueueRef.current
       .catch(() => undefined)
@@ -478,6 +642,11 @@ export default function App() {
       return;
     }
 
+    if (skipNextReferenceSyncRef.current) {
+      skipNextReferenceSyncRef.current = false;
+      return;
+    }
+
     referenceSyncQueueRef.current = referenceSyncQueueRef.current
       .catch(() => undefined)
       .then(() => syncReferenceData(userId, { wallets, categories }))
@@ -485,6 +654,14 @@ export default function App() {
         setSyncNotice('Perubahan dompet atau kategori belum dapat disimpan saat ini.');
       });
   }, [wallets, categories, userId, isStorageHydrated, isOnline, isRemoteReady]);
+
+  React.useEffect(() => {
+    pendingSyncCountRef.current = pendingSyncCount;
+
+    if (pendingSyncCount === 0 && latestRemoteSnapshotRef.current && !syncInFlightRef.current) {
+      applyRemoteSnapshot(latestRemoteSnapshotRef.current);
+    }
+  }, [pendingSyncCount, applyRemoteSnapshot]);
 
   React.useEffect(() => {
     localStorage.setItem(THEME_STORAGE_KEY, theme);
@@ -544,6 +721,13 @@ export default function App() {
 
     syncInFlightRef.current = true;
     setSyncNotice('Menyinkronkan perubahan lokal...');
+    openSyncDialog({
+      tone: 'loading',
+      title: 'Menyinkronkan Data',
+      description: 'Perubahan lokal sedang dikirim dan diverifikasi.',
+      detail: pendingSyncCount > 0 ? `${pendingSyncCount} perubahan sedang diproses.` : 'Harap tunggu sebentar.',
+      canClose: false,
+    });
 
     try {
       const result = await flushPendingTransactionMutations({
@@ -560,14 +744,30 @@ export default function App() {
 
       if (result.syncedCount > 0) {
         setSyncNotice(`${result.syncedCount} perubahan berhasil disinkronkan.`);
+        showTemporarySyncDialog({
+          tone: 'success',
+          title: 'Sinkronisasi Berhasil',
+          description: `${result.syncedCount} perubahan berhasil disimpan.`,
+          detail: 'Data akun Anda kini sudah diperbarui.',
+        }, 2800);
       } else if (result.reason === 'offline') {
         setSyncNotice('Mode offline aktif. Perubahan tetap disimpan di perangkat.');
+        closeSyncDialog();
       } else if (result.reason === 'empty') {
         setSyncNotice(null);
+        closeSyncDialog();
       } else if (result.failedCount > 0) {
         setSyncNotice('Sebagian perubahan belum dapat disinkronkan.');
+        openSyncDialog({
+          tone: 'error',
+          title: 'Sinkronisasi Tertunda',
+          description: 'Sebagian perubahan belum dapat disinkronkan.',
+          detail: 'Data tetap aman di perangkat dan akan dicoba kembali saat koneksi stabil.',
+          canClose: true,
+        });
       } else {
         setSyncNotice(null);
+        closeSyncDialog();
       }
     } finally {
       syncInFlightRef.current = false;
@@ -930,6 +1130,80 @@ export default function App() {
             >
               <X className="w-4 h-4" />
             </button>
+          </div>
+        </div>
+      )}
+
+      {syncDialog && (
+        <div className="fixed inset-0 z-[72] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/35 backdrop-blur-sm"
+            onClick={() => {
+              if (syncDialog.canClose) {
+                closeSyncDialog();
+              }
+            }}
+          />
+          <div className="relative w-full max-w-md overflow-hidden rounded-3xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-2xl">
+            <div className="p-6 sm:p-7">
+              <div className="flex items-start gap-4">
+                <div
+                  className={cn(
+                    'mt-0.5 flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl',
+                    syncDialog.tone === 'loading' && 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
+                    syncDialog.tone === 'success' && 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400',
+                    syncDialog.tone === 'info' && 'bg-sky-100 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400',
+                    syncDialog.tone === 'error' && 'bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400',
+                  )}
+                >
+                  {syncDialog.tone === 'loading' ? (
+                    <LoaderCircle className="h-6 w-6 animate-spin" />
+                  ) : syncDialog.tone === 'success' ? (
+                    <CheckCircle2 className="h-6 w-6" />
+                  ) : syncDialog.tone === 'info' ? (
+                    <RefreshCw className="h-6 w-6" />
+                  ) : (
+                    <AlertCircle className="h-6 w-6" />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900 dark:text-white">{syncDialog.title}</h3>
+                      <p className="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">
+                        {syncDialog.description}
+                      </p>
+                    </div>
+                    {syncDialog.canClose && (
+                      <button
+                        type="button"
+                        onClick={closeSyncDialog}
+                        className="rounded-xl p-2 text-gray-400 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                        aria-label="Tutup dialog sinkronisasi"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                  {syncDialog.detail && (
+                    <div className="rounded-2xl bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 px-4 py-3 text-sm text-gray-500 dark:text-gray-400 leading-6">
+                      {syncDialog.detail}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            {syncDialog.canClose && (
+              <div className="border-t border-gray-100 dark:border-gray-800 px-6 py-4 bg-gray-50 dark:bg-gray-800/80 flex justify-end">
+                <button
+                  type="button"
+                  onClick={closeSyncDialog}
+                  className="inline-flex items-center rounded-xl bg-gray-900 dark:bg-gray-700 px-4 py-2.5 text-sm font-medium text-white hover:bg-gray-800 dark:hover:bg-gray-600 transition-colors"
+                >
+                  Tutup
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

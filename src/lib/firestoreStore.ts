@@ -5,6 +5,7 @@ import {
   deleteDoc,
   doc,
   getDocs,
+  onSnapshot,
   orderBy,
   query,
   serverTimestamp,
@@ -48,6 +49,42 @@ function getCategoriesCollection(userId: string) {
 
 function getTransactionsCollection(userId: string) {
   return collection(getUserDocumentRef(userId), 'transactions');
+}
+
+function mapWalletsSnapshot(walletsSnapshot: Awaited<ReturnType<typeof getDocs>>) {
+  return walletsSnapshot.docs.map((documentSnapshot) => {
+    const data = documentSnapshot.data() as WalletDocument;
+    return {
+      id: documentSnapshot.id,
+      name: data.name,
+      balance: data.balance,
+      color: data.color,
+      icon: data.icon,
+    };
+  });
+}
+
+function mapCategoriesSnapshot(categoriesSnapshot: Awaited<ReturnType<typeof getDocs>>) {
+  return categoriesSnapshot.docs.map((documentSnapshot) => {
+    const data = documentSnapshot.data() as CategoryDocument;
+    return {
+      id: documentSnapshot.id,
+      name: data.name,
+      type: data.type,
+      icon: data.icon,
+      color: data.color,
+    };
+  });
+}
+
+function mapTransactionsSnapshot(transactionsSnapshot: Awaited<ReturnType<typeof getDocs>>) {
+  return transactionsSnapshot.docs.map((documentSnapshot) => {
+    const data = documentSnapshot.data() as TransactionDocument;
+    return {
+      ...data,
+      id: documentSnapshot.id,
+    };
+  });
 }
 
 async function replaceCollection<T extends { id: string }>(
@@ -127,33 +164,67 @@ export async function loadRemoteSnapshot(userId: string): Promise<AppSnapshot | 
   }
 
   return {
-    wallets: walletsSnapshot.docs.map((documentSnapshot) => {
-      const data = documentSnapshot.data() as WalletDocument;
-      return {
-        id: documentSnapshot.id,
-        name: data.name,
-        balance: data.balance,
-        color: data.color,
-        icon: data.icon,
-      };
-    }),
-    categories: categoriesSnapshot.docs.map((documentSnapshot) => {
-      const data = documentSnapshot.data() as CategoryDocument;
-      return {
-        id: documentSnapshot.id,
-        name: data.name,
-        type: data.type,
-        icon: data.icon,
-        color: data.color,
-      };
-    }),
-    transactions: transactionsSnapshot.docs.map((documentSnapshot) => {
-      const data = documentSnapshot.data() as TransactionDocument;
-      return {
-        ...data,
-        id: documentSnapshot.id,
-      };
-    }),
+    wallets: mapWalletsSnapshot(walletsSnapshot),
+    categories: mapCategoriesSnapshot(categoriesSnapshot),
+    transactions: mapTransactionsSnapshot(transactionsSnapshot),
+  };
+}
+
+export function subscribeToRemoteSnapshot(
+  userId: string,
+  onData: (snapshot: AppSnapshot | null) => void,
+  onError?: (error: Error) => void,
+) {
+  let wallets: Wallet[] | null = null;
+  let categories: Category[] | null = null;
+  let transactions: Transaction[] | null = null;
+
+  const emitSnapshot = () => {
+    if (!wallets || !categories || !transactions) {
+      return;
+    }
+
+    if (wallets.length === 0 && categories.length === 0 && transactions.length === 0) {
+      onData(null);
+      return;
+    }
+
+    onData({
+      wallets,
+      categories,
+      transactions,
+    });
+  };
+
+  const unsubscribes = [
+    onSnapshot(
+      query(getWalletsCollection(userId), orderBy('name')),
+      (snapshot) => {
+        wallets = mapWalletsSnapshot(snapshot);
+        emitSnapshot();
+      },
+      (error) => onError?.(error),
+    ),
+    onSnapshot(
+      query(getCategoriesCollection(userId), orderBy('name')),
+      (snapshot) => {
+        categories = mapCategoriesSnapshot(snapshot);
+        emitSnapshot();
+      },
+      (error) => onError?.(error),
+    ),
+    onSnapshot(
+      query(getTransactionsCollection(userId), orderBy('date', 'desc')),
+      (snapshot) => {
+        transactions = mapTransactionsSnapshot(snapshot);
+        emitSnapshot();
+      },
+      (error) => onError?.(error),
+    ),
+  ];
+
+  return () => {
+    unsubscribes.forEach((unsubscribe) => unsubscribe());
   };
 }
 
