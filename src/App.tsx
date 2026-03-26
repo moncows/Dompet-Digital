@@ -278,7 +278,11 @@ export default function App() {
   const [isAddModalOpen, setAddModalOpen] = useState(false);
   const [isAddWalletModalOpen, setAddWalletModalOpen] = useState(false);
   const [isAddCategoryModalOpen, setAddCategoryModalOpen] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
+  const [isMobileSettingsOpen, setIsMobileSettingsOpen] = useState(false);
+  const [isDesktopSettingsMenuOpen, setIsDesktopSettingsMenuOpen] = useState(false);
+  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
+  const [resetConfirmationValue, setResetConfirmationValue] = useState('');
+  const [isResettingData, setIsResettingData] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
     title: string;
@@ -635,6 +639,8 @@ export default function App() {
     return filtered;
   }, [transactions, selectedWalletFilter]);
 
+  const isResetConfirmationValid = resetConfirmationValue.trim().toLowerCase() === 'hapus';
+
   // --- HANDLERS ---
   const handleResetData = async () => {
     if (!userId) {
@@ -656,7 +662,29 @@ export default function App() {
     setPendingSyncCount(0);
     setSyncNotice(null);
     setCurrentView('dashboard');
-    setShowSettings(false);
+    setIsMobileSettingsOpen(false);
+    setIsDesktopSettingsMenuOpen(false);
+  };
+
+  const openResetDataDialog = () => {
+    setResetConfirmationValue('');
+    setIsResetDialogOpen(true);
+  };
+
+  const confirmResetData = async () => {
+    if (!isResetConfirmationValid || isResettingData) {
+      return;
+    }
+
+    setIsResettingData(true);
+
+    try {
+      await handleResetData();
+      setIsResetDialogOpen(false);
+      setResetConfirmationValue('');
+    } finally {
+      setIsResettingData(false);
+    }
   };
 
   const confirmAction = (title: string, message: string, onConfirm: () => void, isDestructive = true, confirmText?: string) => {
@@ -930,22 +958,18 @@ export default function App() {
               />
               <div className="relative">
                 <button
-                  onClick={() => setShowSettings(!showSettings)}
+                  onClick={() => setIsMobileSettingsOpen(!isMobileSettingsOpen)}
                   className="w-10 h-10 rounded-full bg-white/20 dark:bg-gray-900/20 flex items-center justify-center text-white border border-white/30 backdrop-blur-sm"
                 >
                   <MoreVertical className="w-5 h-5" />
                 </button>
-                {showSettings && (
+                {isMobileSettingsOpen && (
                   <div className="absolute top-12 right-0 w-48 bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-800 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        confirmAction(
-                          'Reset Data',
-                          'Apakah Anda yakin ingin menghapus semua data? Tindakan ini tidak dapat dibatalkan.',
-                          handleResetData
-                        );
-                        setShowSettings(false);
+                        setIsMobileSettingsOpen(false);
+                        openResetDataDialog();
                       }}
                       className="w-full px-4 py-3 text-left text-sm font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 flex items-center gap-2"
                     >
@@ -955,7 +979,7 @@ export default function App() {
                     <button
                       onClick={async (event) => {
                         event.stopPropagation();
-                        setShowSettings(false);
+                        setIsMobileSettingsOpen(false);
                         await signOutUser();
                       }}
                       className="w-full px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-2"
@@ -1167,10 +1191,38 @@ export default function App() {
               <PieChart className="w-5 h-5" /> Laporan
             </button>
           </nav>
-          <div className="p-4 border-t border-gray-100 dark:border-gray-800">
-            <a href="#" className="flex items-center gap-3 px-3 py-2.5 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg font-medium transition-colors">
+          <div className="p-4 border-t border-gray-100 dark:border-gray-800 relative">
+            {isDesktopSettingsMenuOpen && (
+              <div className="absolute bottom-[4.5rem] left-4 right-4 bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-800 py-2 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                <button
+                  onClick={() => {
+                    setIsDesktopSettingsMenuOpen(false);
+                    openResetDataDialog();
+                  }}
+                  className="w-full px-4 py-3 text-left text-sm font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 flex items-center gap-2"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Reset Database
+                </button>
+                <button
+                  onClick={async () => {
+                    setIsDesktopSettingsMenuOpen(false);
+                    await signOutUser();
+                  }}
+                  className="w-full px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-2"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  Keluar
+                </button>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => setIsDesktopSettingsMenuOpen(!isDesktopSettingsMenuOpen)}
+              className="w-full flex items-center gap-3 px-3 py-2.5 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg font-medium transition-colors"
+            >
               <Settings className="w-5 h-5" /> Pengaturan
-            </a>
+            </button>
           </div>
         </aside>
 
@@ -1193,41 +1245,14 @@ export default function App() {
                 <Plus className="w-4 h-4" />
                 <span>Tambah Transaksi</span>
               </button>
-              <div className="relative">
-                <button
-                  onClick={() => setShowSettings(!showSettings)}
-                  className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold border border-blue-200 dark:border-blue-800 hover:bg-blue-200 dark:hover:bg-blue-800/50 transition-colors"
-                >
+              <div className="flex items-center gap-3 pl-1">
+                <div className="text-right hidden xl:block">
+                  <div className="text-sm font-medium text-gray-800 dark:text-gray-100">{userLabel}</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">Akun aktif</div>
+                </div>
+                <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold border border-blue-200 dark:border-blue-800">
                   {userInitial}
-                </button>
-                {showSettings && (
-                  <div className="absolute top-10 right-0 w-48 bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-gray-100 dark:border-gray-800 py-1 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-                    <button
-                      onClick={() => {
-                        confirmAction(
-                          'Reset Data',
-                          'Apakah Anda yakin ingin menghapus semua data? Tindakan ini tidak dapat dibatalkan.',
-                          handleResetData
-                        );
-                        setShowSettings(false);
-                      }}
-                      className="w-full px-4 py-2.5 text-left text-sm font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 flex items-center gap-2"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      Reset Database
-                    </button>
-                    <button
-                      onClick={async () => {
-                        setShowSettings(false);
-                        await signOutUser();
-                      }}
-                      className="w-full px-4 py-2.5 text-left text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-2"
-                    >
-                      <ArrowLeft className="w-4 h-4" />
-                      Keluar
-                    </button>
-                  </div>
-                )}
+                </div>
               </div>
             </div>
           </header>
@@ -1479,6 +1504,69 @@ export default function App() {
                 )}
               >
                 {confirmDialog.confirmText || (confirmDialog.isDestructive ? 'Hapus' : 'Ya')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isResetDialogOpen && (
+        <div className="fixed inset-0 z-[75] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => {
+              if (!isResettingData) {
+                setIsResetDialogOpen(false);
+              }
+            }}
+          />
+          <div className="relative bg-white dark:bg-gray-900 rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-6 space-y-4">
+              <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400">
+                <AlertCircle className="w-6 h-6" />
+              </div>
+              <div className="text-center space-y-2">
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">Reset Database</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Tindakan ini akan menghapus seluruh data akun dan mengembalikan aplikasi ke data awal.
+                </p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Untuk melanjutkan, ketik <span className="font-semibold text-gray-900 dark:text-white">hapus</span> pada kolom di bawah.
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+                  Konfirmasi Reset
+                </label>
+                <input
+                  type="text"
+                  value={resetConfirmationValue}
+                  onChange={(event) => setResetConfirmationValue(event.target.value)}
+                  placeholder="ketik: hapus"
+                  className="block w-full px-3 py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-rose-500 focus:border-rose-500 sm:text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                />
+              </div>
+            </div>
+            <div className="p-4 bg-gray-50 dark:bg-gray-800 flex gap-3">
+              <button
+                onClick={() => {
+                  if (!isResettingData) {
+                    setIsResetDialogOpen(false);
+                  }
+                }}
+                className="flex-1 px-4 py-2.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 font-medium rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-70"
+                disabled={isResettingData}
+              >
+                Batal
+              </button>
+              <button
+                onClick={() => {
+                  void confirmResetData();
+                }}
+                disabled={!isResetConfirmationValid || isResettingData}
+                className="flex-1 px-4 py-2.5 text-white font-medium rounded-xl transition-colors bg-rose-600 hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isResettingData ? 'Memproses...' : 'Reset Database'}
               </button>
             </div>
           </div>
