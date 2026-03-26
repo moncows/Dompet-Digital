@@ -51,9 +51,9 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
           <div className="w-12 h-12 mx-auto rounded-2xl bg-blue-600/10 text-blue-600 flex items-center justify-center">
             <LoaderCircle className="w-6 h-6 animate-spin" />
           </div>
-          <h1 className="text-lg font-bold text-gray-900 dark:text-white">Menyiapkan Firebase</h1>
+          <h1 className="text-lg font-bold text-gray-900 dark:text-white">Menyiapkan Aplikasi</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Menunggu sesi login dan koneksi Firestore siap dipakai.
+            Menunggu sesi masuk dan data akun diproses.
           </p>
         </div>
       </div>
@@ -68,20 +68,9 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
             <Cloud className="w-6 h-6" />
           </div>
           <div className="space-y-2">
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white">Firebase Belum Dikonfigurasi</h1>
+            <h1 className="text-xl font-bold text-gray-900 dark:text-white">Konfigurasi Aplikasi Belum Lengkap</h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              Isi variabel `VITE_FIREBASE_*` di `.env.local` agar Auth dan Firestore bisa dipakai.
-            </p>
-          </div>
-          <div className="rounded-2xl bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-4 text-sm text-gray-600 dark:text-gray-300">
-            <p>Field minimum yang wajib ada:</p>
-            <p className="mt-2 font-mono text-xs leading-6">
-              VITE_FIREBASE_API_KEY<br />
-              VITE_FIREBASE_AUTH_DOMAIN<br />
-              VITE_FIREBASE_PROJECT_ID<br />
-              VITE_FIREBASE_STORAGE_BUCKET<br />
-              VITE_FIREBASE_MESSAGING_SENDER_ID<br />
-              VITE_FIREBASE_APP_ID
+              Beberapa layanan belum siap digunakan. Silakan periksa pengaturan aplikasi atau hubungi administrator.
             </p>
           </div>
         </div>
@@ -100,9 +89,9 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
           <div className="w-14 h-14 rounded-2xl bg-white/15 border border-white/20 flex items-center justify-center mb-5">
             <Cloud className="w-7 h-7" />
           </div>
-          <h1 className="text-2xl font-bold">DompetKu Firebase</h1>
+          <h1 className="text-2xl font-bold">DompetKu</h1>
           <p className="text-sm text-blue-100 mt-2">
-            Login untuk menghubungkan penyimpanan lokal dengan Firebase Auth dan Firestore.
+            Masuk untuk menghubungkan data perangkat dengan akun Anda.
           </p>
         </div>
 

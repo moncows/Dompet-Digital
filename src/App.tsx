@@ -390,7 +390,7 @@ export default function App() {
         if (!remoteSnapshot) {
           await seedRemoteSnapshot(userId, localSnapshot);
           if (!isCancelled) {
-            setSyncNotice('Data lokal pertama berhasil dicadangkan ke Firestore.');
+            setSyncNotice('Data awal berhasil disiapkan.');
           }
           return;
         }
@@ -415,7 +415,7 @@ export default function App() {
           await saveAppSnapshot(userId, normalizedRemoteSnapshot);
 
           if (!isCancelled) {
-            setSyncNotice('Snapshot Firestore berhasil dimuat ke perangkat ini.');
+            setSyncNotice('Data akun berhasil dimuat ke perangkat ini.');
           }
           return;
         }
@@ -423,7 +423,7 @@ export default function App() {
         if (pendingCount === 0) {
           await seedRemoteSnapshot(userId, localSnapshot);
           if (!isCancelled) {
-            setSyncNotice('Snapshot lokal berhasil diperbarui ke Firestore.');
+            setSyncNotice('Perubahan lokal berhasil diperbarui.');
           }
           return;
         }
@@ -434,7 +434,7 @@ export default function App() {
         });
       } catch {
         if (!isCancelled) {
-          setSyncNotice('Gagal menyambungkan Firestore. Aplikasi tetap memakai data lokal.');
+          setSyncNotice('Koneksi layanan data sedang bermasalah. Data lokal tetap tersedia.');
         }
       } finally {
         if (!isCancelled) {
@@ -478,7 +478,7 @@ export default function App() {
       .catch(() => undefined)
       .then(() => syncReferenceData(userId, { wallets, categories }))
       .catch(() => {
-        setSyncNotice('Perubahan dompet atau kategori belum bisa dikirim ke Firestore.');
+        setSyncNotice('Perubahan dompet atau kategori belum dapat disimpan saat ini.');
       });
   }, [wallets, categories, userId, isStorageHydrated, isOnline, isRemoteReady]);
 
@@ -561,7 +561,7 @@ export default function App() {
       } else if (result.reason === 'empty') {
         setSyncNotice(null);
       } else if (result.failedCount > 0) {
-        setSyncNotice('Sebagian perubahan belum bisa dikirim ke Firestore.');
+        setSyncNotice('Sebagian perubahan belum dapat disinkronkan.');
       } else {
         setSyncNotice(null);
       }
@@ -576,7 +576,7 @@ export default function App() {
     }
 
     if (!isOnline) {
-      setSyncNotice('Mode offline aktif. Perubahan baru akan masuk antrean sinkronisasi Firebase.');
+      setSyncNotice('Mode offline aktif. Perubahan baru akan masuk antrean sinkronisasi.');
       return;
     }
 
@@ -842,7 +842,7 @@ export default function App() {
   const syncBanner = !isOnline
     ? {
       key: 'offline',
-      text: 'Offline mode aktif. Transaksi baru disimpan lokal dan akan dikirim ke Firebase saat koneksi kembali.',
+      text: 'Mode offline aktif. Transaksi baru disimpan lokal dan akan dikirim saat koneksi kembali.',
       className: 'bg-amber-500 text-white',
     }
     : pendingSyncCount > 0
@@ -852,9 +852,9 @@ export default function App() {
           : `pending-local:${pendingSyncCount}`,
         text: hasCloudSyncConfigured
           ? syncInFlightRef.current
-            ? `Menyinkronkan ${pendingSyncCount} perubahan ke Firestore...`
-            : `${pendingSyncCount} perubahan menunggu sinkronisasi ke Firestore.`
-          : `${pendingSyncCount} perubahan aman di perangkat, tetapi Firebase belum dikonfigurasi.`,
+            ? `Menyinkronkan ${pendingSyncCount} perubahan...`
+            : `${pendingSyncCount} perubahan menunggu sinkronisasi.`
+          : `${pendingSyncCount} perubahan aman di perangkat, namun sinkronisasi cloud belum aktif.`,
         className: hasCloudSyncConfigured ? 'bg-slate-900 text-white' : 'bg-sky-600 text-white',
       }
       : syncNotice

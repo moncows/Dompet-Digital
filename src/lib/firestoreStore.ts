@@ -32,7 +32,7 @@ const USER_COLLECTION = 'users';
 function getUserDocumentRef(userId: string) {
   const firestore = getFirestoreInstance();
   if (!firestore) {
-    throw new Error('Firestore belum dikonfigurasi.');
+    throw new Error('Layanan data belum siap digunakan.');
   }
 
   return doc(firestore, USER_COLLECTION, userId);
@@ -58,7 +58,7 @@ async function replaceCollection<T extends { id: string }>(
 ) {
   const firestore = getFirestoreInstance();
   if (!firestore) {
-    throw new Error('Firestore belum dikonfigurasi.');
+    throw new Error('Layanan data belum siap digunakan.');
   }
 
   const collectionRef = collection(getUserDocumentRef(userId), collectionName);

@@ -8,7 +8,6 @@ import {
   onAuthStateChanged,
   setPersistence,
   signInWithPopup,
-  signInWithRedirect,
   signInWithEmailAndPassword,
   signOut,
   updateProfile,
@@ -34,15 +33,6 @@ function createGoogleProvider() {
     prompt: 'select_account',
   });
   return provider;
-}
-
-function shouldUseRedirectFlow() {
-  if (typeof window === 'undefined') {
-    return false;
-  }
-
-  const userAgent = window.navigator.userAgent.toLowerCase();
-  return /android|iphone|ipad|ipod/i.test(userAgent);
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -97,7 +87,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signIn = React.useCallback(async (email: string, password: string) => {
     const auth = getFirebaseAuthInstance();
     if (!auth) {
-      throw new Error('Firebase Auth belum dikonfigurasi.');
+      throw new Error('Layanan masuk belum siap digunakan.');
     }
 
     const credential = await signInWithEmailAndPassword(auth, email, password);
@@ -107,16 +97,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signInWithGoogle = React.useCallback(async () => {
     const auth = getFirebaseAuthInstance();
     if (!auth) {
-      throw new Error('Firebase Auth belum dikonfigurasi.');
+      throw new Error('Layanan masuk belum siap digunakan.');
     }
 
     const provider = createGoogleProvider();
-
-    if (shouldUseRedirectFlow()) {
-      await signInWithRedirect(auth, provider);
-      return;
-    }
-
     const credential = await signInWithPopup(auth, provider);
     await ensureUserProfileDocument(credential.user);
   }, []);
@@ -124,7 +108,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signUp = React.useCallback(async (name: string, email: string, password: string) => {
     const auth = getFirebaseAuthInstance();
     if (!auth) {
-      throw new Error('Firebase Auth belum dikonfigurasi.');
+      throw new Error('Layanan masuk belum siap digunakan.');
     }
 
     const credential = await createUserWithEmailAndPassword(auth, email, password);

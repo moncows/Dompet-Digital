@@ -9,7 +9,7 @@ import { upsertTransactionDocument } from './firestoreStore';
 
 async function sendTransactionMutation(item: TransactionQueueItem) {
   if (!isFirebaseConfigured()) {
-    throw new Error('Firebase belum dikonfigurasi.');
+    throw new Error('Sinkronisasi cloud belum aktif.');
   }
 
   await upsertTransactionDocument(item.userId, item.transaction);
@@ -70,7 +70,7 @@ export async function flushPendingTransactionMutations(options?: {
 
       options?.onFailure?.(item, errorMessage);
 
-      if (errorMessage.includes('Firebase belum dikonfigurasi.')) {
+      if (errorMessage.includes('Sinkronisasi cloud belum aktif.')) {
         break;
       }
 
