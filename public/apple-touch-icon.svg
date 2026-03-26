@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" role="img" aria-labelledby="title">
+  <title>DompetKu Apple Touch Icon</title>
+  <defs>
+    <linearGradient id="bg" x1="12%" x2="88%" y1="8%" y2="92%">
+      <stop offset="0%" stop-color="#2563eb" />
+      <stop offset="100%" stop-color="#0f172a" />
+    </linearGradient>
+  </defs>
+  <rect width="180" height="180" rx="48" fill="url(#bg)" />
+  <path d="M45 65c0-9.941 8.059-18 18-18h49c12.703 0 23 10.297 23 23v8H112c-10.493 0-19 8.507-19 19s8.507 19 19 19h23v2c0 9.941-8.059 18-18 18H63c-9.941 0-18-8.059-18-18V65Z" fill="#dbeafe"/>
+  <path d="M111 85h30c5.523 0 10 4.477 10 10v6c0 5.523-4.477 10-10 10h-30c-7.18 0-13-5.82-13-13s5.82-13 13-13Z" fill="#93c5fd"/>
+  <circle cx="121" cy="98" r="4.5" fill="#1e3a8a"/>
+</svg>

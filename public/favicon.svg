@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title>DompetKu</title>
+  <defs>
+    <linearGradient id="bg" x1="0%" x2="100%" y1="0%" y2="100%">
+      <stop offset="0%" stop-color="#2563eb" />
+      <stop offset="100%" stop-color="#0f172a" />
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="18" fill="url(#bg)" />
+  <path d="M16 23c0-3.314 2.686-6 6-6h18c4.418 0 8 3.582 8 8v3h-8a6 6 0 0 0 0 12h8v1c0 3.314-2.686 6-6 6H22c-3.314 0-6-2.686-6-6V23Z" fill="#dbeafe"/>
+  <path d="M39 31h11a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2H39a3 3 0 1 1 0-6Z" fill="#93c5fd"/>
+  <circle cx="42.5" cy="34" r="1.5" fill="#1e3a8a"/>
+</svg>

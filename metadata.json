@@ -1,5 +1,5 @@
 {
-  "name": "DompetKu - Finance Tracker",
-  "description": "Aplikasi pencatat keuangan pribadi dengan fitur multiple dompet (wallets) untuk melacak pemasukan dan pengeluaran.",
+  "name": "DompetKu Cash Flow PWA",
+  "description": "Aplikasi kas dan arus uang berbasis PWA dengan dukungan multiple wallet, antrean sinkronisasi offline, dan pengalaman mobile-first.",
   "requestFramePermissions": []
 }

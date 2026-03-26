@@ -1,20 +1,92 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# DompetKu Cash Flow PWA
 
-# Run and deploy your AI Studio app
+Frontend mobile-first untuk aplikasi kas berbasis React + Vite yang disiapkan menuju arsitektur:
 
-This contains everything you need to run your app locally.
+- React SPA + Vite
+- PWA dengan `vite-plugin-pwa`
+- Offline queue berbasis IndexedDB
+- Backend stateless CodeIgniter REST API
+- PostgreSQL
 
-View your app in AI Studio: https://ai.studio/apps/ee948b1c-433c-4282-a70f-c5fb36c60654
+## Status Saat Ini
 
-## Run Locally
+Repo ini sekarang sudah punya fondasi awal untuk:
 
-**Prerequisites:**  Node.js
+- installable PWA
+- app shell caching melalui Workbox
+- penyimpanan master data di IndexedDB
+- antrean sinkronisasi transaksi saat offline
+- sinkronisasi ulang otomatis saat koneksi kembali
 
+Yang belum aktif penuh:
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+- backend CodeIgniter API
+- JWT login
+- endpoint sinkronisasi transaksi yang benar-benar hidup
+
+## Prasyarat
+
+- Node.js 20 LTS atau lebih baru
+- npm
+
+## Jalankan Lokal
+
+1. Install dependency:
+
+   ```bash
+   npm install
+   ```
+
+2. Salin `.env.example` menjadi `.env.local`, lalu sesuaikan:
+
+   ```bash
+   cp .env.example .env.local
+   ```
+
+3. Isi `VITE_API_BASE_URL` dengan root API CodeIgniter kamu.
+
+   Contoh:
+
+   ```env
+   VITE_API_BASE_URL="http://localhost/app-kas-api/public/api"
+   ```
+
+4. Jalankan development server:
+
+   ```bash
+   npm run dev
+   ```
+
+5. Buka [http://localhost:3000](http://localhost:3000)
+
+## Build Production
+
+```bash
+npm run build
+```
+
+## Catatan Offline Sync
+
+- Snapshot utama `wallets`, `categories`, dan `transactions` sekarang disimpan di IndexedDB.
+- `localStorage` hanya dipertahankan untuk hal ringan seperti tema dan token.
+- Saat user menambah, mengubah, atau membatalkan transaksi, perubahan langsung diterapkan ke UI lokal.
+- Perubahan itu juga dimasukkan ke antrean IndexedDB.
+- Jika device offline, antrean tetap aman di browser.
+- Saat koneksi kembali, frontend mencoba mengirim antrean ke API.
+
+## Endpoint Backend yang Diasumsikan
+
+Frontend saat ini menarget pola endpoint berikut:
+
+- `POST /transactions`
+- `PUT /transactions/:id`
+- `PATCH /transactions/:id/cancel`
+
+Base URL endpoint diambil dari `VITE_API_BASE_URL`.
+
+## Langkah Lanjut yang Disarankan
+
+1. Siapkan CodeIgniter API + JWT.
+2. Pastikan setiap transaksi menerima `client_id` dari frontend untuk idempotency.
+3. Tambahkan user session/auth storage yang aman.
+4. Pisahkan snapshot master data, cache API, dan queue sinkronisasi ke store IndexedDB yang berbeda jika domain data mulai besar.

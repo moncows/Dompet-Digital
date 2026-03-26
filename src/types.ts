@@ -7,6 +7,7 @@ export type Wallet = {
 };
 
 export type TransactionType = 'income' | 'expense' | 'transfer';
+export type SyncStatus = 'pending' | 'synced' | 'failed';
 
 export type Transaction = {
   id: string;
@@ -18,6 +19,9 @@ export type Transaction = {
   date: string;
   note: string;
   status?: 'completed' | 'canceled';
+  clientId?: string;
+  syncStatus?: SyncStatus;
+  syncError?: string;
 };
 
 export type Category = {
@@ -26,4 +30,17 @@ export type Category = {
   type: 'income' | 'expense';
   icon: string;
   color: string;
+};
+
+export type TransactionMutationType = 'create' | 'update' | 'cancel';
+
+export type TransactionQueueItem = {
+  id: string;
+  transactionId: string;
+  operation: TransactionMutationType;
+  transaction: Transaction;
+  queuedAt: string;
+  retryCount: number;
+  lastAttemptAt?: string;
+  lastError?: string;
 };

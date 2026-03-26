@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title>DompetKu PWA Icon Large</title>
+  <defs>
+    <linearGradient id="bg" x1="14%" x2="86%" y1="10%" y2="90%">
+      <stop offset="0%" stop-color="#2563eb" />
+      <stop offset="100%" stop-color="#0f172a" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="144" fill="url(#bg)" />
+  <path d="M128 184c0-27.614 22.386-50 50-50h138c34.242 0 62 27.758 62 62v23h-62c-28.719 0-52 23.281-52 52s23.281 52 52 52h62v5c0 27.614-22.386 50-50 50H178c-27.614 0-50-22.386-50-50V184Z" fill="#dbeafe"/>
+  <path d="M314 240h82c14.359 0 26 11.641 26 26v16c0 14.359-11.641 26-26 26h-82c-18.778 0-34-15.222-34-34s15.222-34 34-34Z" fill="#93c5fd"/>
+  <circle cx="342" cy="274" r="12" fill="#1e3a8a"/>
+</svg>

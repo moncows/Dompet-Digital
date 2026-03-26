@@ -104,8 +104,34 @@ import {
 } from 'recharts';
 import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay } from 'date-fns';
 import { id } from 'date-fns/locale';
+import { useOnlineStatus } from './hooks/useOnlineStatus';
+import { AppSnapshot, clearAppSnapshot, loadAppSnapshot, saveAppSnapshot } from './lib/appStorage';
+import {
+  clearTransactionMutations,
+  createQueueItemId,
+  enqueueTransactionMutation,
+  getPendingTransactionCount,
+} from './lib/offlineQueue';
+import { ACCESS_TOKEN_STORAGE_KEY, flushPendingTransactionMutations } from './lib/transactionSync';
 import { cn } from './lib/utils';
-import { Wallet, Transaction, Category, TransactionType } from './types';
+import { ThemeMode, THEME_STORAGE_KEY, applyTheme, getInitialTheme } from './lib/theme';
+import { Wallet, Transaction, Category, TransactionType, TransactionMutationType } from './types';
+
+const createClientId = () => {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID();
+  }
+
+  return `tx-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+};
+
+const normalizeTransactions = (items: Transaction[]) => {
+  return items.map((transaction) => ({
+    ...transaction,
+    clientId: transaction.clientId ?? transaction.id,
+    syncStatus: transaction.syncStatus ?? 'synced',
+  }));
+};
 
 // --- MOCK DATA ---
 const INITIAL_WALLETS: Wallet[] = [
@@ -129,6 +155,12 @@ const INITIAL_TRANSACTIONS: Transaction[] = [
   { id: 't4', type: 'transfer', amount: 500000, categoryId: '', walletId: 'w2', toWalletId: 'w3', date: '2026-03-22T09:00:00Z', note: 'Topup GoPay' },
 ];
 
+const DEFAULT_APP_SNAPSHOT: AppSnapshot = {
+  wallets: INITIAL_WALLETS,
+  categories: CATEGORIES,
+  transactions: normalizeTransactions(INITIAL_TRANSACTIONS),
+};
+
 // --- HELPER FUNCTIONS ---
 const formatRupiah = (amount: number) => {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount);
@@ -150,19 +182,42 @@ const getIconComponent = (iconName: string) => {
   return <Icon className="w-5 h-5" />;
 };
 
+function ThemeToggleButton({
+  theme,
+  onToggle,
+  className,
+}: {
+  theme: ThemeMode;
+  onToggle: () => void;
+  className: string;
+}) {
+  const isDarkTheme = theme === 'dark';
+  const label = isDarkTheme ? 'Aktifkan mode terang' : 'Aktifkan mode gelap';
+
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-label={label}
+      title={label}
+      className={className}
+    >
+      {isDarkTheme ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+    </button>
+  );
+}
+
 export default function App() {
-  const [wallets, setWallets] = useState<Wallet[]>(() => {
-    const saved = localStorage.getItem('dompetku_wallets');
-    return saved ? JSON.parse(saved) : INITIAL_WALLETS;
-  });
-  const [categories, setCategories] = useState<Category[]>(() => {
-    const saved = localStorage.getItem('dompetku_categories');
-    return saved ? JSON.parse(saved) : CATEGORIES;
-  });
-  const [transactions, setTransactions] = useState<Transaction[]>(() => {
-    const saved = localStorage.getItem('dompetku_transactions');
-    return saved ? JSON.parse(saved) : INITIAL_TRANSACTIONS;
-  });
+  const [theme, setTheme] = useState<ThemeMode>(getInitialTheme);
+  const isOnline = useOnlineStatus();
+  const syncInFlightRef = React.useRef(false);
+  const storageSaveQueueRef = React.useRef(Promise.resolve());
+  const [isStorageHydrated, setIsStorageHydrated] = useState(false);
+  const [pendingSyncCount, setPendingSyncCount] = useState(0);
+  const [syncNotice, setSyncNotice] = useState<string | null>(null);
+  const [wallets, setWallets] = useState<Wallet[]>(DEFAULT_APP_SNAPSHOT.wallets);
+  const [categories, setCategories] = useState<Category[]>(DEFAULT_APP_SNAPSHOT.categories);
+  const [transactions, setTransactions] = useState<Transaction[]>(DEFAULT_APP_SNAPSHOT.transactions);
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [isAddModalOpen, setAddModalOpen] = useState(false);
   const [isAddWalletModalOpen, setAddWalletModalOpen] = useState(false);
@@ -191,16 +246,153 @@ export default function App() {
 
   // --- PERSISTENCE ---
   React.useEffect(() => {
-    localStorage.setItem('dompetku_wallets', JSON.stringify(wallets));
-  }, [wallets]);
+    let isCancelled = false;
+
+    const bootstrapLocalState = async () => {
+      try {
+        const [snapshot, queuedMutationsCount] = await Promise.all([
+          loadAppSnapshot(DEFAULT_APP_SNAPSHOT),
+          getPendingTransactionCount(),
+        ]);
+
+        if (isCancelled) {
+          return;
+        }
+
+        setWallets(snapshot.wallets);
+        setCategories(snapshot.categories);
+        setTransactions(normalizeTransactions(snapshot.transactions));
+        setPendingSyncCount(queuedMutationsCount);
+      } catch {
+        if (!isCancelled) {
+          setSyncNotice('Gagal memuat IndexedDB. Data default dipakai sementara.');
+          setPendingSyncCount(0);
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsStorageHydrated(true);
+        }
+      }
+    };
+
+    void bootstrapLocalState();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
 
   React.useEffect(() => {
-    localStorage.setItem('dompetku_categories', JSON.stringify(categories));
-  }, [categories]);
+    if (!isStorageHydrated) {
+      return;
+    }
+
+    const snapshotToPersist: AppSnapshot = {
+      wallets,
+      categories,
+      transactions,
+    };
+
+    storageSaveQueueRef.current = storageSaveQueueRef.current
+      .catch(() => undefined)
+      .then(() => saveAppSnapshot(snapshotToPersist))
+      .catch(() => {
+        setSyncNotice('Gagal menyimpan perubahan ke IndexedDB.');
+      });
+  }, [wallets, categories, transactions, isStorageHydrated]);
 
   React.useEffect(() => {
-    localStorage.setItem('dompetku_transactions', JSON.stringify(transactions));
-  }, [transactions]);
+    localStorage.setItem(THEME_STORAGE_KEY, theme);
+    applyTheme(theme);
+  }, [theme]);
+
+  const refreshPendingSyncCount = async () => {
+    setPendingSyncCount(await getPendingTransactionCount());
+  };
+
+  const updateTransactionSyncState = (transactionId: string, syncStatus: Transaction['syncStatus'], syncError?: string) => {
+    setTransactions((prev) => prev.map((transaction) => {
+      if (transaction.id !== transactionId && transaction.clientId !== transactionId) {
+        return transaction;
+      }
+
+      return {
+        ...transaction,
+        syncStatus,
+        syncError,
+      };
+    }));
+  };
+
+  const syncPendingTransactions = async () => {
+    if (!isOnline || syncInFlightRef.current) {
+      return;
+    }
+
+    syncInFlightRef.current = true;
+    setSyncNotice('Menyinkronkan perubahan lokal...');
+
+    try {
+      const result = await flushPendingTransactionMutations({
+        token: localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY) ?? undefined,
+        onSuccess: (item) => {
+          updateTransactionSyncState(item.transactionId, 'synced');
+        },
+        onFailure: (item, errorMessage) => {
+          updateTransactionSyncState(item.transactionId, navigator.onLine ? 'failed' : 'pending', errorMessage);
+        },
+      });
+
+      await refreshPendingSyncCount();
+
+      if (result.syncedCount > 0) {
+        setSyncNotice(`${result.syncedCount} perubahan berhasil disinkronkan.`);
+      } else if (result.reason === 'offline') {
+        setSyncNotice('Mode offline aktif. Perubahan tetap disimpan di perangkat.');
+      } else if (result.reason === 'empty') {
+        setSyncNotice(null);
+      } else if (result.failedCount > 0) {
+        setSyncNotice('Sebagian perubahan belum bisa dikirim ke server.');
+      } else {
+        setSyncNotice(null);
+      }
+    } finally {
+      syncInFlightRef.current = false;
+    }
+  };
+
+  React.useEffect(() => {
+    if (!isOnline) {
+      setSyncNotice('Mode offline aktif. Perubahan baru akan masuk antrean sinkronisasi.');
+      return;
+    }
+
+    if (pendingSyncCount > 0) {
+      void syncPendingTransactions();
+      return;
+    }
+
+    if (syncNotice?.startsWith('Mode offline aktif')) {
+      setSyncNotice(null);
+    }
+  }, [isOnline, pendingSyncCount]);
+
+  const queueTransactionChange = async (operation: TransactionMutationType, transaction: Transaction) => {
+    await enqueueTransactionMutation({
+      id: createQueueItemId(),
+      transactionId: transaction.clientId ?? transaction.id,
+      operation,
+      transaction,
+      queuedAt: new Date().toISOString(),
+      retryCount: 0,
+    });
+
+    await refreshPendingSyncCount();
+
+    if (isOnline) {
+      void syncPendingTransactions();
+    }
+  };
 
   // --- CALCULATIONS ---
   const totalBalance = useMemo(() => wallets.reduce((acc, w) => acc + w.balance, 0), [wallets]);
@@ -226,13 +418,16 @@ export default function App() {
   }, [transactions, selectedWalletFilter]);
 
   // --- HANDLERS ---
-  const handleResetData = () => {
-    localStorage.removeItem('dompetku_wallets');
-    localStorage.removeItem('dompetku_transactions');
-    localStorage.removeItem('dompetku_categories');
-    setWallets(INITIAL_WALLETS);
-    setTransactions(INITIAL_TRANSACTIONS);
-    setCategories(CATEGORIES);
+  const handleResetData = async () => {
+    await storageSaveQueueRef.current.catch(() => undefined);
+    await clearAppSnapshot();
+    await clearTransactionMutations();
+    await saveAppSnapshot(DEFAULT_APP_SNAPSHOT);
+    setWallets(DEFAULT_APP_SNAPSHOT.wallets);
+    setTransactions(DEFAULT_APP_SNAPSHOT.transactions);
+    setCategories(DEFAULT_APP_SNAPSHOT.categories);
+    setPendingSyncCount(0);
+    setSyncNotice(null);
     setCurrentView('dashboard');
     setShowSettings(false);
   };
@@ -249,9 +444,12 @@ export default function App() {
   };
 
   const handleAddTransaction = (newTx: Omit<Transaction, 'id'>) => {
+    const clientId = createClientId();
     const transaction: Transaction = {
       ...newTx,
-      id: `t${Date.now()}`
+      id: clientId,
+      clientId,
+      syncStatus: 'pending'
     };
 
     setWallets(prev => prev.map(w => {
@@ -269,12 +467,20 @@ export default function App() {
     }));
 
     setTransactions(prev => [transaction, ...prev]);
+    void queueTransactionChange('create', transaction);
     setAddModalOpen(false);
   };
 
   const handleUpdateTransaction = (updatedTx: Transaction) => {
     const oldTx = transactions.find(t => t.id === updatedTx.id);
     if (!oldTx) return;
+
+    const nextTransaction: Transaction = {
+      ...updatedTx,
+      clientId: updatedTx.clientId ?? updatedTx.id,
+      syncStatus: 'pending',
+      syncError: undefined,
+    };
 
     setWallets(prev => {
       let nextWallets = [...prev];
@@ -292,11 +498,11 @@ export default function App() {
 
       // 2. Apply new transaction
       nextWallets = nextWallets.map(w => {
-        if (updatedTx.type === 'income' && w.id === updatedTx.walletId) return { ...w, balance: w.balance + updatedTx.amount };
-        if (updatedTx.type === 'expense' && w.id === updatedTx.walletId) return { ...w, balance: w.balance - updatedTx.amount };
-        if (updatedTx.type === 'transfer') {
-          if (w.id === updatedTx.walletId) return { ...w, balance: w.balance - updatedTx.amount };
-          if (w.id === updatedTx.toWalletId) return { ...w, balance: w.balance + updatedTx.amount };
+        if (nextTransaction.type === 'income' && w.id === nextTransaction.walletId) return { ...w, balance: w.balance + nextTransaction.amount };
+        if (nextTransaction.type === 'expense' && w.id === nextTransaction.walletId) return { ...w, balance: w.balance - nextTransaction.amount };
+        if (nextTransaction.type === 'transfer') {
+          if (w.id === nextTransaction.walletId) return { ...w, balance: w.balance - nextTransaction.amount };
+          if (w.id === nextTransaction.toWalletId) return { ...w, balance: w.balance + nextTransaction.amount };
         }
         return w;
       });
@@ -304,7 +510,8 @@ export default function App() {
       return nextWallets;
     });
 
-    setTransactions(prev => prev.map(t => t.id === updatedTx.id ? updatedTx : t));
+    setTransactions(prev => prev.map(t => t.id === nextTransaction.id ? nextTransaction : t));
+    void queueTransactionChange('update', nextTransaction);
     setEditingTransaction(null);
   };
 
@@ -326,7 +533,16 @@ export default function App() {
       return w;
     }));
 
-    setTransactions(prev => prev.map(t => t.id === id ? { ...t, status: 'canceled' } : t));
+    const canceledTransaction: Transaction = {
+      ...tx,
+      status: 'canceled',
+      clientId: tx.clientId ?? tx.id,
+      syncStatus: 'pending',
+      syncError: undefined,
+    };
+
+    setTransactions(prev => prev.map(t => t.id === id ? canceledTransaction : t));
+    void queueTransactionChange('cancel', canceledTransaction);
   };
 
   const handleAddWallet = (newWallet: Omit<Wallet, 'id'>) => {
@@ -391,8 +607,57 @@ export default function App() {
     setCategories(prev => prev.filter(c => c.id !== id));
   };
 
+  const isDarkTheme = theme === 'dark';
+  const toggleTheme = () => {
+    setTheme(prevTheme => prevTheme === 'dark' ? 'light' : 'dark');
+  };
+  const hasBackendSyncConfigured = Boolean(import.meta.env.VITE_API_BASE_URL?.trim());
+  const syncBanner = !isOnline
+    ? {
+        text: 'Offline mode aktif. Transaksi baru disimpan lokal dan akan dikirim saat koneksi kembali.',
+        className: 'bg-amber-500 text-white',
+      }
+    : pendingSyncCount > 0
+      ? {
+          text: hasBackendSyncConfigured
+            ? syncInFlightRef.current
+              ? `Menyinkronkan ${pendingSyncCount} perubahan ke server...`
+              : `${pendingSyncCount} perubahan menunggu sinkronisasi ke server.`
+            : `${pendingSyncCount} perubahan aman di perangkat, tetapi backend API belum dikonfigurasi.`,
+          className: hasBackendSyncConfigured ? 'bg-slate-900 text-white' : 'bg-sky-600 text-white',
+        }
+      : syncNotice
+        ? {
+            text: syncNotice,
+            className: syncNotice.includes('berhasil') ? 'bg-emerald-600 text-white' : 'bg-slate-900 text-white',
+          }
+        : null;
+
+  if (!isStorageHydrated) {
+    return (
+      <div className="h-screen w-full bg-gray-50 text-gray-900 font-sans flex items-center justify-center px-6">
+        <div className="max-w-sm w-full rounded-3xl bg-white border border-gray-100 shadow-sm p-6 text-center space-y-3">
+          <div className="w-12 h-12 mx-auto rounded-2xl bg-blue-600/10 text-blue-600 flex items-center justify-center">
+            <Cloud className="w-6 h-6" />
+          </div>
+          <h1 className="text-lg font-bold text-gray-900">Memuat Penyimpanan Lokal</h1>
+          <p className="text-sm text-gray-500">
+            DompetKu sedang membaca data dari IndexedDB agar transaksi offline tetap aman.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-screen w-full bg-gray-50 overflow-hidden font-sans text-gray-900">
+      {syncBanner && (
+        <div className="fixed left-1/2 top-4 z-[80] w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 px-4">
+          <div className={cn('rounded-2xl px-4 py-3 text-sm font-medium shadow-lg backdrop-blur-sm', syncBanner.className)}>
+            {syncBanner.text}
+          </div>
+        </div>
+      )}
       
       {/* ==========================================
           MOBILE VIEW (Native App Style)
@@ -411,6 +676,11 @@ export default function App() {
               >
                 <WalletIcon className="w-5 h-5" />
               </button>
+              <ThemeToggleButton
+                theme={theme}
+                onToggle={toggleTheme}
+                className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white border border-white/30 backdrop-blur-sm transition-colors"
+              />
               <div className="relative">
                 <button 
                   onClick={() => setShowSettings(!showSettings)}
@@ -519,7 +789,7 @@ export default function App() {
             </>
           ) : currentView === 'reports' ? (
             <div className="space-y-6">
-              <ReportsView transactions={transactions} categories={categories} />
+              <ReportsView transactions={transactions} categories={categories} isDarkTheme={isDarkTheme} />
             </div>
           ) : currentView === 'transactions' ? (
             <div className="pb-20">
@@ -653,6 +923,11 @@ export default function App() {
               {currentView === 'dashboard' ? 'Dashboard Keuangan' : currentView === 'reports' ? 'Laporan Keuangan' : 'Riwayat Transaksi'}
             </h1>
             <div className="flex items-center gap-3">
+              <ThemeToggleButton
+                theme={theme}
+                onToggle={toggleTheme}
+                className="w-10 h-10 rounded-xl bg-white border border-gray-200 text-gray-600 flex items-center justify-center hover:bg-gray-50 transition-colors shadow-sm"
+              />
               <button 
                 onClick={() => setAddModalOpen(true)}
                 className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
@@ -819,7 +1094,7 @@ export default function App() {
                 </div>
               </div>
             ) : currentView === 'reports' ? (
-              <ReportsView transactions={transactions} categories={categories} />
+              <ReportsView transactions={transactions} categories={categories} isDarkTheme={isDarkTheme} />
             ) : currentView === 'transactions' ? (
               <TransactionsView 
                 transactions={filteredTransactions} 
@@ -946,7 +1221,15 @@ export default function App() {
 }
 
 // --- REPORTS VIEW COMPONENT ---
-function ReportsView({ transactions, categories }: { transactions: Transaction[], categories: Category[] }) {
+function ReportsView({ 
+  transactions,
+  categories,
+  isDarkTheme
+}: {
+  transactions: Transaction[],
+  categories: Category[],
+  isDarkTheme: boolean
+}) {
   const [period, setPeriod] = useState<'thisMonth' | 'lastMonth' | 'thisYear'>('thisMonth');
 
   const filteredData = useMemo(() => {
@@ -1014,6 +1297,21 @@ function ReportsView({ transactions, categories }: { transactions: Transaction[]
   }, [filteredData, categories]);
 
   const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+  const chartPalette = isDarkTheme ? {
+    axis: '#94a3b8',
+    grid: '#1e293b',
+    tooltipBg: '#0f172a',
+    tooltipBorder: '#1e293b',
+    tooltipText: '#e2e8f0',
+    cursor: 'rgba(51, 65, 85, 0.35)',
+  } : {
+    axis: '#9ca3af',
+    grid: '#f3f4f6',
+    tooltipBg: '#ffffff',
+    tooltipBorder: '#e5e7eb',
+    tooltipText: '#111827',
+    cursor: '#f9fafb',
+  };
 
   const totalIncome = filteredData.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
   const totalExpense = filteredData.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
@@ -1070,12 +1368,18 @@ function ReportsView({ transactions, categories }: { transactions: Transaction[]
           <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <ReBarChart data={barChartData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#9ca3af'}} />
-                <YAxis axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#9ca3af'}} tickFormatter={(value) => `Rp${value/1000}k`} />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chartPalette.grid} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 12, fill: chartPalette.axis}} />
+                <YAxis axisLine={false} tickLine={false} tick={{fontSize: 12, fill: chartPalette.axis}} tickFormatter={(value) => `Rp${value/1000}k`} />
                 <Tooltip 
-                  cursor={{fill: '#f9fafb'}}
-                  contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}
+                  cursor={{fill: chartPalette.cursor}}
+                  contentStyle={{
+                    borderRadius: '12px',
+                    border: `1px solid ${chartPalette.tooltipBorder}`,
+                    backgroundColor: chartPalette.tooltipBg,
+                    color: chartPalette.tooltipText,
+                    boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'
+                  }}
                   formatter={(value: number) => formatRupiah(value)}
                 />
                 <Bar dataKey="income" fill="#10b981" radius={[4, 4, 0, 0]} name="Masuk" />
@@ -1105,10 +1409,16 @@ function ReportsView({ transactions, categories }: { transactions: Transaction[]
                   ))}
                 </Pie>
                 <Tooltip 
-                  contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}
+                  contentStyle={{
+                    borderRadius: '12px',
+                    border: `1px solid ${chartPalette.tooltipBorder}`,
+                    backgroundColor: chartPalette.tooltipBg,
+                    color: chartPalette.tooltipText,
+                    boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'
+                  }}
                   formatter={(value: number) => formatRupiah(value)}
                 />
-                <Legend verticalAlign="bottom" height={36}/>
+                <Legend verticalAlign="bottom" height={36} wrapperStyle={{ color: chartPalette.axis }}/>
               </RePieChart>
             </ResponsiveContainer>
           </div>
