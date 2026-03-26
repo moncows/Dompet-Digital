@@ -1,0 +1,1928 @@
+import React, { useState, useMemo } from 'react';
+import { 
+  Trash2,
+  Wallet as WalletIcon, 
+  CreditCard, 
+  Landmark, 
+  Plus, 
+  ArrowUpRight, 
+  ArrowDownRight, 
+  ArrowRightLeft,
+  Home,
+  PieChart,
+  Settings,
+  Menu,
+  X,
+  Coffee,
+  ShoppingCart,
+  Car,
+  Briefcase,
+  Gift,
+  MoreVertical,
+  Filter,
+  Calendar,
+  Pencil,
+  Tag,
+  ChevronRight,
+  ArrowLeft,
+  Utensils,
+  Zap,
+  Heart,
+  Book,
+  Music,
+  Film,
+  Camera,
+  Phone,
+  Laptop,
+  Smartphone,
+  Plane,
+  Dumbbell,
+  GraduationCap,
+  Stethoscope,
+  Pill,
+  Shield,
+  Lock,
+  Search,
+  Users,
+  Mail,
+  MessageSquare,
+  Send,
+  Cloud,
+  Sun,
+  Moon,
+  Star,
+  Activity,
+  Target,
+  Flag,
+  Award,
+  Trophy,
+  Medal,
+  Map,
+  Navigation,
+  Compass,
+  Anchor,
+  Bike,
+  Truck,
+  Bus,
+  Train,
+  Ship,
+  Umbrella,
+  Wind,
+  Droplets,
+  Thermometer,
+  Sunrise,
+  Sunset,
+  Pizza,
+  Sandwich,
+  IceCream,
+  Beer,
+  Wine,
+  Apple,
+  Banana,
+  Cherry,
+  Grape,
+  Carrot,
+  Egg,
+  Cake,
+  Cookie,
+  Candy,
+  Popcorn,
+  AlertCircle
+} from 'lucide-react';
+import { 
+  BarChart as ReBarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer, 
+  PieChart as RePieChart, 
+  Pie, 
+  Cell,
+  Legend
+} from 'recharts';
+import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay } from 'date-fns';
+import { id } from 'date-fns/locale';
+import { cn } from './lib/utils';
+import { Wallet, Transaction, Category, TransactionType } from './types';
+
+// --- MOCK DATA ---
+const INITIAL_WALLETS: Wallet[] = [
+  { id: 'w1', name: 'Dompet Tunai', balance: 1500000, color: 'bg-emerald-500', icon: 'WalletIcon' },
+  { id: 'w2', name: 'Rekening BCA', balance: 12500000, color: 'bg-blue-600', icon: 'Landmark' },
+  { id: 'w3', name: 'GoPay', balance: 350000, color: 'bg-sky-500', icon: 'CreditCard' },
+];
+
+const CATEGORIES: Category[] = [
+  { id: 'c1', name: 'Gaji', type: 'income', icon: 'Briefcase', color: 'text-emerald-600 bg-emerald-100' },
+  { id: 'c2', name: 'Bonus', type: 'income', icon: 'Gift', color: 'text-teal-600 bg-teal-100' },
+  { id: 'c3', name: 'Makanan', type: 'expense', icon: 'Coffee', color: 'text-orange-600 bg-orange-100' },
+  { id: 'c4', name: 'Belanja', type: 'expense', icon: 'ShoppingCart', color: 'text-purple-600 bg-purple-100' },
+  { id: 'c5', name: 'Transportasi', type: 'expense', icon: 'Car', color: 'text-blue-600 bg-blue-100' },
+];
+
+const INITIAL_TRANSACTIONS: Transaction[] = [
+  { id: 't1', type: 'income', amount: 10000000, categoryId: 'c1', walletId: 'w2', date: '2026-03-25T08:00:00Z', note: 'Gaji Bulan Maret' },
+  { id: 't2', type: 'expense', amount: 50000, categoryId: 'c3', walletId: 'w3', date: '2026-03-24T12:30:00Z', note: 'Makan Siang Nasi Padang' },
+  { id: 't3', type: 'expense', amount: 150000, categoryId: 'c4', walletId: 'w2', date: '2026-03-23T15:00:00Z', note: 'Belanja Bulanan Mini' },
+  { id: 't4', type: 'transfer', amount: 500000, categoryId: '', walletId: 'w2', toWalletId: 'w3', date: '2026-03-22T09:00:00Z', note: 'Topup GoPay' },
+];
+
+// --- HELPER FUNCTIONS ---
+const formatRupiah = (amount: number) => {
+  return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount);
+};
+
+const getIconComponent = (iconName: string) => {
+  const icons: Record<string, any> = { 
+    WalletIcon, CreditCard, Landmark, Coffee, ShoppingCart, Car, Briefcase, Gift, 
+    Home, Utensils, Zap, Heart, Book, Music, Film, Camera, Phone, Laptop, 
+    Smartphone, Plane, Dumbbell, GraduationCap, Stethoscope, Pill, Shield, 
+    Lock, Search, Users, Mail, MessageSquare, Send, Cloud, Sun, Moon, Star, 
+    Activity, Target, Flag, Award, Trophy, Medal, Map, Navigation, 
+    Compass, Anchor, Bike, Truck, Bus, Train, Ship, Umbrella, 
+    Wind, Droplets, Thermometer, Sunrise, Sunset, Pizza, Sandwich, 
+    IceCream, Beer, Wine, Apple, Banana, Cherry, Grape, 
+    Carrot, Egg, Cake, Cookie, Candy, Popcorn
+  };
+  const Icon = icons[iconName] || WalletIcon;
+  return <Icon className="w-5 h-5" />;
+};
+
+export default function App() {
+  const [wallets, setWallets] = useState<Wallet[]>(() => {
+    const saved = localStorage.getItem('dompetku_wallets');
+    return saved ? JSON.parse(saved) : INITIAL_WALLETS;
+  });
+  const [categories, setCategories] = useState<Category[]>(() => {
+    const saved = localStorage.getItem('dompetku_categories');
+    return saved ? JSON.parse(saved) : CATEGORIES;
+  });
+  const [transactions, setTransactions] = useState<Transaction[]>(() => {
+    const saved = localStorage.getItem('dompetku_transactions');
+    return saved ? JSON.parse(saved) : INITIAL_TRANSACTIONS;
+  });
+  const [isSidebarOpen, setSidebarOpen] = useState(false);
+  const [isAddModalOpen, setAddModalOpen] = useState(false);
+  const [isAddWalletModalOpen, setAddWalletModalOpen] = useState(false);
+  const [isAddCategoryModalOpen, setAddCategoryModalOpen] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    isDestructive?: boolean;
+    confirmText?: string;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+  
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [editingWallet, setEditingWallet] = useState<Wallet | null>(null);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+
+  const [currentView, setCurrentView] = useState<'dashboard' | 'reports' | 'transactions' | 'categories' | 'wallets'>('dashboard');
+  const [selectedWalletFilter, setSelectedWalletFilter] = useState<string | null>(null);
+
+  // --- PERSISTENCE ---
+  React.useEffect(() => {
+    localStorage.setItem('dompetku_wallets', JSON.stringify(wallets));
+  }, [wallets]);
+
+  React.useEffect(() => {
+    localStorage.setItem('dompetku_categories', JSON.stringify(categories));
+  }, [categories]);
+
+  React.useEffect(() => {
+    localStorage.setItem('dompetku_transactions', JSON.stringify(transactions));
+  }, [transactions]);
+
+  // --- CALCULATIONS ---
+  const totalBalance = useMemo(() => wallets.reduce((acc, w) => acc + w.balance, 0), [wallets]);
+  
+  const currentMonthTransactions = useMemo(() => {
+    return transactions.filter(t => t.status !== 'canceled');
+  }, [transactions]);
+
+  const totalIncome = useMemo(() => 
+    currentMonthTransactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0)
+  , [currentMonthTransactions]);
+
+  const totalExpense = useMemo(() => 
+    currentMonthTransactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0)
+  , [currentMonthTransactions]);
+
+  const filteredTransactions = useMemo(() => {
+    let filtered = [...transactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    if (selectedWalletFilter) {
+      filtered = filtered.filter(t => t.walletId === selectedWalletFilter || t.toWalletId === selectedWalletFilter);
+    }
+    return filtered;
+  }, [transactions, selectedWalletFilter]);
+
+  // --- HANDLERS ---
+  const handleResetData = () => {
+    localStorage.removeItem('dompetku_wallets');
+    localStorage.removeItem('dompetku_transactions');
+    localStorage.removeItem('dompetku_categories');
+    setWallets(INITIAL_WALLETS);
+    setTransactions(INITIAL_TRANSACTIONS);
+    setCategories(CATEGORIES);
+    setCurrentView('dashboard');
+    setShowSettings(false);
+  };
+
+  const confirmAction = (title: string, message: string, onConfirm: () => void, isDestructive = true, confirmText?: string) => {
+    setConfirmDialog({
+      isOpen: true,
+      title,
+      message,
+      onConfirm,
+      isDestructive,
+      confirmText
+    });
+  };
+
+  const handleAddTransaction = (newTx: Omit<Transaction, 'id'>) => {
+    const transaction: Transaction = {
+      ...newTx,
+      id: `t${Date.now()}`
+    };
+
+    setWallets(prev => prev.map(w => {
+      if (transaction.type === 'income' && w.id === transaction.walletId) {
+        return { ...w, balance: w.balance + transaction.amount };
+      }
+      if (transaction.type === 'expense' && w.id === transaction.walletId) {
+        return { ...w, balance: w.balance - transaction.amount };
+      }
+      if (transaction.type === 'transfer') {
+        if (w.id === transaction.walletId) return { ...w, balance: w.balance - transaction.amount };
+        if (w.id === transaction.toWalletId) return { ...w, balance: w.balance + transaction.amount };
+      }
+      return w;
+    }));
+
+    setTransactions(prev => [transaction, ...prev]);
+    setAddModalOpen(false);
+  };
+
+  const handleUpdateTransaction = (updatedTx: Transaction) => {
+    const oldTx = transactions.find(t => t.id === updatedTx.id);
+    if (!oldTx) return;
+
+    setWallets(prev => {
+      let nextWallets = [...prev];
+      
+      // 1. Reverse old transaction
+      nextWallets = nextWallets.map(w => {
+        if (oldTx.type === 'income' && w.id === oldTx.walletId) return { ...w, balance: w.balance - oldTx.amount };
+        if (oldTx.type === 'expense' && w.id === oldTx.walletId) return { ...w, balance: w.balance + oldTx.amount };
+        if (oldTx.type === 'transfer') {
+          if (w.id === oldTx.walletId) return { ...w, balance: w.balance + oldTx.amount };
+          if (w.id === oldTx.toWalletId) return { ...w, balance: w.balance - oldTx.amount };
+        }
+        return w;
+      });
+
+      // 2. Apply new transaction
+      nextWallets = nextWallets.map(w => {
+        if (updatedTx.type === 'income' && w.id === updatedTx.walletId) return { ...w, balance: w.balance + updatedTx.amount };
+        if (updatedTx.type === 'expense' && w.id === updatedTx.walletId) return { ...w, balance: w.balance - updatedTx.amount };
+        if (updatedTx.type === 'transfer') {
+          if (w.id === updatedTx.walletId) return { ...w, balance: w.balance - updatedTx.amount };
+          if (w.id === updatedTx.toWalletId) return { ...w, balance: w.balance + updatedTx.amount };
+        }
+        return w;
+      });
+
+      return nextWallets;
+    });
+
+    setTransactions(prev => prev.map(t => t.id === updatedTx.id ? updatedTx : t));
+    setEditingTransaction(null);
+  };
+
+  const handleDeleteTransaction = (id: string) => {
+    const tx = transactions.find(t => t.id === id);
+    if (!tx || tx.status === 'canceled') return;
+
+    setWallets(prev => prev.map(w => {
+      if (tx.type === 'income' && w.id === tx.walletId) {
+        return { ...w, balance: w.balance - tx.amount };
+      }
+      if (tx.type === 'expense' && w.id === tx.walletId) {
+        return { ...w, balance: w.balance + tx.amount };
+      }
+      if (tx.type === 'transfer') {
+        if (w.id === tx.walletId) return { ...w, balance: w.balance + tx.amount };
+        if (w.id === tx.toWalletId) return { ...w, balance: w.balance - tx.amount };
+      }
+      return w;
+    }));
+
+    setTransactions(prev => prev.map(t => t.id === id ? { ...t, status: 'canceled' } : t));
+  };
+
+  const handleAddWallet = (newWallet: Omit<Wallet, 'id'>) => {
+    const wallet: Wallet = {
+      ...newWallet,
+      id: `w${Date.now()}`
+    };
+    setWallets(prev => [...prev, wallet]);
+    setAddWalletModalOpen(false);
+  };
+
+  const handleUpdateWallet = (updatedWallet: Wallet) => {
+    setWallets(prev => prev.map(w => w.id === updatedWallet.id ? updatedWallet : w));
+    setEditingWallet(null);
+  };
+
+  const handleDeleteWallet = (id: string) => {
+    // Check if wallet has transactions
+    const hasTransactions = transactions.some(t => t.walletId === id || t.toWalletId === id);
+    if (hasTransactions) {
+      setConfirmDialog({
+        isOpen: true,
+        title: 'Tidak Dapat Menghapus',
+        message: 'Dompet ini memiliki transaksi. Hapus semua transaksi terkait terlebih dahulu.',
+        onConfirm: () => {},
+        isDestructive: false,
+        confirmText: 'Ok'
+      });
+      return;
+    }
+    setWallets(prev => prev.filter(w => w.id !== id));
+    if (selectedWalletFilter === id) setSelectedWalletFilter(null);
+  };
+
+  const handleAddCategory = (newCat: Omit<Category, 'id'>) => {
+    const category: Category = {
+      ...newCat,
+      id: `c${Date.now()}`
+    };
+    setCategories(prev => [...prev, category]);
+    setAddCategoryModalOpen(false);
+  };
+
+  const handleUpdateCategory = (updatedCat: Category) => {
+    setCategories(prev => prev.map(c => c.id === updatedCat.id ? updatedCat : c));
+    setEditingCategory(null);
+  };
+
+  const handleDeleteCategory = (id: string) => {
+    const hasTransactions = transactions.some(t => t.categoryId === id);
+    if (hasTransactions) {
+      setConfirmDialog({
+        isOpen: true,
+        title: 'Tidak Dapat Menghapus',
+        message: 'Kategori ini sedang digunakan dalam transaksi. Ubah kategori transaksi tersebut terlebih dahulu.',
+        onConfirm: () => {},
+        isDestructive: false,
+        confirmText: 'Ok'
+      });
+      return;
+    }
+    setCategories(prev => prev.filter(c => c.id !== id));
+  };
+
+  return (
+    <div className="h-screen w-full bg-gray-50 overflow-hidden font-sans text-gray-900">
+      
+      {/* ==========================================
+          MOBILE VIEW (Native App Style)
+          ========================================== */}
+      <div className="flex flex-col h-full lg:hidden relative">
+        {/* Header (Curved) */}
+        <div className="bg-blue-600 pt-12 pb-16 px-6 rounded-b-[2.5rem] shrink-0 shadow-md">
+          <div className="flex justify-between items-center mb-6">
+            <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white font-bold border border-white/30 backdrop-blur-sm">
+              U
+            </div>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={() => setCurrentView('wallets')}
+                className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white border border-white/30 backdrop-blur-sm"
+              >
+                <WalletIcon className="w-5 h-5" />
+              </button>
+              <div className="relative">
+                <button 
+                  onClick={() => setShowSettings(!showSettings)}
+                  className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white border border-white/30 backdrop-blur-sm"
+                >
+                  <MoreVertical className="w-5 h-5" />
+                </button>
+                {showSettings && (
+                  <div className="absolute top-12 right-0 w-48 bg-white rounded-2xl shadow-xl border border-gray-100 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        confirmAction(
+                          'Reset Data', 
+                          'Apakah Anda yakin ingin menghapus semua data? Tindakan ini tidak dapat dibatalkan.',
+                          handleResetData
+                        );
+                        setShowSettings(false);
+                      }}
+                      className="w-full px-4 py-3 text-left text-sm font-medium text-rose-600 hover:bg-rose-50 flex items-center gap-2"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Reset Database
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="text-blue-100 text-sm font-medium">Total Saldo</div>
+          <div className="text-white text-3xl font-bold mt-1">{formatRupiah(totalBalance)}</div>
+        </div>
+
+        {/* Wallets Horizontal Scroll */}
+        <div className="-mt-10 shrink-0 z-10 w-full">
+          <div className="flex gap-4 overflow-x-auto px-6 pb-4 snap-x hide-scrollbar">
+            {wallets.map(wallet => (
+              <div 
+                key={wallet.id} 
+                onClick={() => setSelectedWalletFilter(wallet.id === selectedWalletFilter ? null : wallet.id)} 
+                className={cn(
+                  "bg-white rounded-2xl p-4 shadow-sm min-w-[150px] snap-center shrink-0 border-2 transition-colors cursor-pointer", 
+                  selectedWalletFilter === wallet.id ? "border-blue-500" : "border-transparent"
+                )}
+              >
+                <div className={cn("w-10 h-10 rounded-full flex items-center justify-center text-white mb-3", wallet.color)}>
+                  {getIconComponent(wallet.icon)}
+                </div>
+                <div className="text-sm text-gray-500 font-medium">{wallet.name}</div>
+                <div className="font-bold text-gray-900 mt-0.5">{formatRupiah(wallet.balance)}</div>
+              </div>
+            ))}
+            <div 
+              onClick={() => setAddWalletModalOpen(true)}
+              className="bg-blue-50/50 border-2 border-dashed border-blue-200 rounded-2xl p-4 min-w-[120px] snap-center shrink-0 flex flex-col items-center justify-center text-blue-600 cursor-pointer hover:bg-blue-50 transition-colors"
+            >
+              <Plus className="w-8 h-8 mb-2" />
+              <span className="text-sm font-medium">Tambah</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Transactions List / Reports View */}
+        <div className="flex-1 overflow-y-auto px-6 pb-28 pt-2">
+          {currentView === 'dashboard' ? (
+            <>
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="font-bold text-gray-900 text-lg">Transaksi Terakhir</h3>
+                <button 
+                  onClick={() => setCurrentView('transactions')}
+                  className="text-sm text-blue-600 font-medium"
+                >
+                  Lihat Semua
+                </button>
+              </div>
+              <div className="space-y-4">
+                {filteredTransactions.slice(0, 10).length === 0 ? (
+                  <div className="text-center text-gray-500 py-8">Belum ada transaksi.</div>
+                ) : (
+                  filteredTransactions.slice(0, 10).map(tx => {
+                    const isIncome = tx.type === 'income';
+                    const isTransfer = tx.type === 'transfer';
+                    const category = categories.find(c => c.id === tx.categoryId);
+                    const wallet = wallets.find(w => w.id === tx.walletId);
+                    
+                    return (
+                      <div key={tx.id} className={cn("bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-3", tx.status === 'canceled' && "opacity-60")}>
+                        <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0", isTransfer ? "bg-gray-100 text-gray-600" : category?.color || "bg-gray-100 text-gray-600")}>
+                          {isTransfer ? <ArrowRightLeft className="w-5 h-5" /> : getIconComponent(category?.icon || 'WalletIcon')}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className={cn("font-bold text-gray-900 truncate text-sm flex items-center gap-2", tx.status === 'canceled' && "line-through text-gray-500")}>
+                            {tx.note || (isTransfer ? 'Transfer' : category?.name)}
+                            {tx.status === 'canceled' && <span className="text-[9px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded font-medium no-underline">Dibatalkan</span>}
+                          </div>
+                          <div className="text-[10px] text-gray-500 mt-0.5">{wallet?.name} • {format(parseISO(tx.date), 'dd MMM', { locale: id })}</div>
+                        </div>
+                        <div className={cn("font-bold whitespace-nowrap text-right text-sm", tx.status === 'canceled' ? "text-gray-400 line-through" : isIncome ? "text-emerald-600" : isTransfer ? "text-gray-900" : "text-rose-600")}>
+                          {isIncome ? '+' : isTransfer ? '' : '-'}{formatRupiah(tx.amount)}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </>
+          ) : currentView === 'reports' ? (
+            <div className="space-y-6">
+              <ReportsView transactions={transactions} categories={categories} />
+            </div>
+          ) : currentView === 'transactions' ? (
+            <div className="pb-20">
+              <TransactionsView 
+                transactions={filteredTransactions} 
+                categories={categories} 
+                wallets={wallets}
+                onDelete={handleDeleteTransaction}
+                onEdit={(tx) => setEditingTransaction(tx)}
+                onShowConfirm={confirmAction}
+              />
+            </div>
+          ) : currentView === 'wallets' ? (
+            <WalletsManageView 
+              wallets={wallets} 
+              onEdit={(w) => setEditingWallet(w)} 
+              onDelete={handleDeleteWallet}
+              onAdd={() => setAddWalletModalOpen(true)}
+              onShowConfirm={confirmAction}
+            />
+          ) : (
+            <CategoriesManageView 
+              categories={categories} 
+              onEdit={(c) => setEditingCategory(c)} 
+              onDelete={handleDeleteCategory}
+              onAdd={() => setAddCategoryModalOpen(true)}
+              onShowConfirm={confirmAction}
+            />
+          )}
+        </div>
+
+        {/* Bottom Navigation Bar */}
+        <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-6 py-2 flex justify-between items-center pb-safe z-20">
+          <button 
+            onClick={() => setCurrentView('dashboard')}
+            className={cn("flex flex-col items-center p-2", currentView === 'dashboard' ? "text-blue-600" : "text-gray-400")}
+          >
+            <Home className="w-6 h-6"/>
+            <span className={cn("text-[10px] mt-1", currentView === 'dashboard' ? "font-bold" : "font-medium")}>Home</span>
+          </button>
+          <button 
+            onClick={() => setCurrentView('transactions')}
+            className={cn("flex flex-col items-center p-2", currentView === 'transactions' ? "text-blue-600" : "text-gray-400")}
+          >
+            <ArrowRightLeft className="w-6 h-6"/>
+            <span className={cn("text-[10px] mt-1", currentView === 'transactions' ? "font-bold" : "font-medium")}>Transaksi</span>
+          </button>
+          
+          <div className="w-16"></div> {/* Spacer for FAB */}
+
+          <button 
+            onClick={() => setCurrentView('reports')}
+            className={cn("flex flex-col items-center p-2", currentView === 'reports' ? "text-blue-600" : "text-gray-400")}
+          >
+            <PieChart className="w-6 h-6"/>
+            <span className={cn("text-[10px] mt-1", currentView === 'reports' ? "font-bold" : "font-medium")}>Laporan</span>
+          </button>
+          <button 
+            onClick={() => setCurrentView('categories')}
+            className={cn("flex flex-col items-center p-2", currentView === 'categories' ? "text-blue-600" : "text-gray-400")}
+          >
+            <Tag className="w-6 h-6"/>
+            <span className={cn("text-[10px] mt-1", currentView === 'categories' ? "font-bold" : "font-medium")}>Kategori</span>
+          </button>
+          
+          {/* FAB */}
+          <button 
+            onClick={() => setAddModalOpen(true)} 
+            className="absolute left-1/2 -translate-x-1/2 -top-6 w-14 h-14 bg-blue-600 rounded-full flex items-center justify-center text-white shadow-lg shadow-blue-600/40 border-4 border-gray-50 hover:bg-blue-700 hover:scale-105 transition-all active:scale-95"
+          >
+            <Plus className="w-7 h-7" />
+          </button>
+        </div>
+      </div>
+
+      {/* ==========================================
+          DESKTOP VIEW (Dashboard Style)
+          ========================================== */}
+      <div className="hidden lg:flex h-full w-full">
+        {/* SIDEBAR */}
+        <aside className="w-64 bg-white border-r border-gray-200 flex flex-col shrink-0">
+          <div className="h-16 flex items-center px-6 border-b border-gray-100">
+            <div className="flex items-center gap-2 text-blue-600">
+              <WalletIcon className="w-6 h-6" />
+              <span className="text-xl font-bold tracking-tight">DompetKu</span>
+            </div>
+          </div>
+          <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
+            <button 
+              onClick={() => setCurrentView('dashboard')}
+              className={cn("w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-colors", currentView === 'dashboard' ? "bg-blue-50 text-blue-700" : "text-gray-600 hover:bg-gray-50")}
+            >
+              <Home className="w-5 h-5" /> Dashboard
+            </button>
+            <button 
+              onClick={() => setCurrentView('transactions')}
+              className={cn("w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-colors", currentView === 'transactions' ? "bg-blue-50 text-blue-700" : "text-gray-600 hover:bg-gray-50")}
+            >
+              <ArrowRightLeft className="w-5 h-5" /> Transaksi
+            </button>
+            <button 
+              onClick={() => setCurrentView('wallets')}
+              className={cn("w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-colors", currentView === 'wallets' ? "bg-blue-50 text-blue-700" : "text-gray-600 hover:bg-gray-50")}
+            >
+              <WalletIcon className="w-5 h-5" /> Dompet
+            </button>
+            <button 
+              onClick={() => setCurrentView('categories')}
+              className={cn("w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-colors", currentView === 'categories' ? "bg-blue-50 text-blue-700" : "text-gray-600 hover:bg-gray-50")}
+            >
+              <Tag className="w-5 h-5" /> Kategori
+            </button>
+            <button 
+              onClick={() => setCurrentView('reports')}
+              className={cn("w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-colors", currentView === 'reports' ? "bg-blue-50 text-blue-700" : "text-gray-600 hover:bg-gray-50")}
+            >
+              <PieChart className="w-5 h-5" /> Laporan
+            </button>
+          </nav>
+          <div className="p-4 border-t border-gray-100">
+            <a href="#" className="flex items-center gap-3 px-3 py-2.5 text-gray-600 hover:bg-gray-50 rounded-lg font-medium transition-colors">
+              <Settings className="w-5 h-5" /> Pengaturan
+            </a>
+          </div>
+        </aside>
+
+        {/* MAIN CONTENT */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-8 shrink-0">
+            <h1 className="text-lg font-semibold text-gray-800">
+              {currentView === 'dashboard' ? 'Dashboard Keuangan' : currentView === 'reports' ? 'Laporan Keuangan' : 'Riwayat Transaksi'}
+            </h1>
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={() => setAddModalOpen(true)}
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Tambah Transaksi</span>
+              </button>
+              <div className="relative">
+                <button 
+                  onClick={() => setShowSettings(!showSettings)}
+                  className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold border border-blue-200 hover:bg-blue-200 transition-colors"
+                >
+                  U
+                </button>
+                {showSettings && (
+                  <div className="absolute top-10 right-0 w-48 bg-white rounded-xl shadow-xl border border-gray-100 py-1 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <button 
+                      onClick={() => {
+                        confirmAction(
+                          'Reset Data', 
+                          'Apakah Anda yakin ingin menghapus semua data? Tindakan ini tidak dapat dibatalkan.',
+                          handleResetData
+                        );
+                        setShowSettings(false);
+                      }}
+                      className="w-full px-4 py-2.5 text-left text-sm font-medium text-rose-600 hover:bg-rose-50 flex items-center gap-2"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Reset Database
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </header>
+
+          <main className="flex-1 overflow-y-auto p-8">
+            {currentView === 'dashboard' ? (
+              <div className="max-w-7xl mx-auto space-y-6">
+                {/* STATS GRID */}
+                <div className="grid grid-cols-3 gap-6">
+                  <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+                    <div className="text-sm font-medium text-gray-500 mb-1">Total Saldo</div>
+                    <div className="text-3xl font-bold text-gray-900">{formatRupiah(totalBalance)}</div>
+                    <div className="mt-4 flex items-center text-sm text-gray-500">
+                      <span>Dari {wallets.length} dompet aktif</span>
+                    </div>
+                  </div>
+                  <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="text-sm font-medium text-gray-500">Pemasukan (Bulan Ini)</div>
+                      <div className="w-8 h-8 rounded-full bg-emerald-50 flex items-center justify-center">
+                        <ArrowDownRight className="w-4 h-4 text-emerald-600" />
+                      </div>
+                    </div>
+                    <div className="text-2xl font-bold text-gray-900">{formatRupiah(totalIncome)}</div>
+                  </div>
+                  <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="text-sm font-medium text-gray-500">Pengeluaran (Bulan Ini)</div>
+                      <div className="w-8 h-8 rounded-full bg-rose-50 flex items-center justify-center">
+                        <ArrowUpRight className="w-4 h-4 text-rose-600" />
+                      </div>
+                    </div>
+                    <div className="text-2xl font-bold text-gray-900">{formatRupiah(totalExpense)}</div>
+                  </div>
+                </div>
+
+                {/* TWO COLUMN LAYOUT */}
+                <div className="grid grid-cols-3 gap-6">
+                  <div className="col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+                    <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+                      <h2 className="text-lg font-semibold text-gray-900">Transaksi Terakhir</h2>
+                      <button 
+                        onClick={() => setCurrentView('transactions')}
+                        className="text-sm text-blue-600 font-medium hover:text-blue-700"
+                      >
+                        Lihat Semua
+                      </button>
+                    </div>
+                    <div className="divide-y divide-gray-50 flex-1">
+                      {filteredTransactions.slice(0, 10).length === 0 ? (
+                        <div className="p-8 text-center text-gray-500">Belum ada transaksi.</div>
+                      ) : (
+                        filteredTransactions.slice(0, 10).map(tx => {
+                          const isIncome = tx.type === 'income';
+                          const isTransfer = tx.type === 'transfer';
+                          const category = categories.find(c => c.id === tx.categoryId);
+                          const wallet = wallets.find(w => w.id === tx.walletId);
+                          const toWallet = wallets.find(w => w.id === tx.toWalletId);
+
+                          return (
+                            <div key={tx.id} className={cn("p-5 flex items-center gap-4 hover:bg-gray-50 transition-colors", tx.status === 'canceled' && "opacity-60")}>
+                              <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center shrink-0", isTransfer ? "bg-gray-100 text-gray-600" : category?.color || "bg-gray-100 text-gray-600")}>
+                                {isTransfer ? <ArrowRightLeft className="w-6 h-6" /> : getIconComponent(category?.icon || 'WalletIcon')}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className={cn("font-medium text-gray-900 truncate flex items-center gap-2", tx.status === 'canceled' && "line-through text-gray-500")}>
+                                  {tx.note || (isTransfer ? 'Transfer' : category?.name)}
+                                  {tx.status === 'canceled' && <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded font-medium no-underline">Dibatalkan</span>}
+                                </div>
+                                <div className="text-sm text-gray-500 flex items-center gap-1.5 mt-0.5">
+                                  <span>{format(parseISO(tx.date), 'dd MMM yyyy', { locale: id })}</span>
+                                  <span>•</span>
+                                  <span className="truncate">{isTransfer ? `${wallet?.name} → ${toWallet?.name}` : wallet?.name}</span>
+                                </div>
+                              </div>
+                              <div className={cn("font-semibold whitespace-nowrap text-right", tx.status === 'canceled' ? "text-gray-400 line-through" : isIncome ? "text-emerald-600" : isTransfer ? "text-gray-900" : "text-rose-600")}>
+                                {isIncome ? '+' : isTransfer ? '' : '-'}{formatRupiah(tx.amount)}
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col h-fit">
+                    <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+                      <h2 className="text-lg font-semibold text-gray-900">Daftar Dompet</h2>
+                      <button 
+                        onClick={() => setCurrentView('wallets')}
+                        className="p-1 text-gray-400 hover:text-gray-600 rounded-md hover:bg-gray-100"
+                      >
+                        <Settings className="w-5 h-5" />
+                      </button>
+                    </div>
+                    <div className="p-3 space-y-2">
+                      <button 
+                        onClick={() => setSelectedWalletFilter(null)}
+                        className={cn("w-full flex items-center justify-between p-3 rounded-xl transition-colors text-left", selectedWalletFilter === null ? "bg-blue-50 ring-1 ring-blue-200" : "hover:bg-gray-50")}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-600">
+                            <Landmark className="w-5 h-5" />
+                          </div>
+                          <span className="font-medium text-gray-900">Semua Dompet</span>
+                        </div>
+                        <span className="font-semibold text-gray-900">{formatRupiah(totalBalance)}</span>
+                      </button>
+                      {wallets.map(wallet => (
+                        <button 
+                          key={wallet.id}
+                          onClick={() => setSelectedWalletFilter(wallet.id)}
+                          className={cn("w-full flex items-center justify-between p-3 rounded-xl transition-colors text-left", selectedWalletFilter === wallet.id ? "bg-blue-50 ring-1 ring-blue-200" : "hover:bg-gray-50")}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={cn("w-10 h-10 rounded-full flex items-center justify-center text-white", wallet.color)}>
+                              {getIconComponent(wallet.icon)}
+                            </div>
+                            <div className="font-medium text-gray-900">{wallet.name}</div>
+                          </div>
+                          <div className="font-semibold text-gray-900">{formatRupiah(wallet.balance)}</div>
+                        </button>
+                      ))}
+                      <button 
+                        onClick={() => setAddWalletModalOpen(true)}
+                        className="w-full mt-2 py-3 border-2 border-dashed border-gray-200 rounded-xl text-gray-500 font-medium hover:border-blue-300 hover:text-blue-600 transition-colors flex items-center justify-center gap-2"
+                      >
+                        <Plus className="w-4 h-4" /> Tambah Dompet
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : currentView === 'reports' ? (
+              <ReportsView transactions={transactions} categories={categories} />
+            ) : currentView === 'transactions' ? (
+              <TransactionsView 
+                transactions={filteredTransactions} 
+                categories={categories} 
+                wallets={wallets}
+                onDelete={handleDeleteTransaction}
+                onEdit={(tx) => setEditingTransaction(tx)}
+                onShowConfirm={confirmAction}
+              />
+            ) : currentView === 'wallets' ? (
+              <WalletsManageView 
+                wallets={wallets} 
+                onEdit={(w) => setEditingWallet(w)} 
+                onDelete={handleDeleteWallet}
+                onAdd={() => setAddWalletModalOpen(true)}
+                onShowConfirm={confirmAction}
+              />
+            ) : (
+              <CategoriesManageView 
+                categories={categories} 
+                onEdit={(c) => setEditingCategory(c)} 
+                onDelete={handleDeleteCategory}
+                onAdd={() => setAddCategoryModalOpen(true)}
+                onShowConfirm={confirmAction}
+              />
+            )}
+          </main>
+        </div>
+      </div>
+
+      {/* --- ADD TRANSACTION MODAL --- */}
+      {(isAddModalOpen || editingTransaction) && (
+        <AddTransactionModal 
+          wallets={wallets} 
+          categories={categories} 
+          editingTransaction={editingTransaction}
+          onClose={() => {
+            setAddModalOpen(false);
+            setEditingTransaction(null);
+          }} 
+          onSave={(tx) => {
+            if ('id' in tx) {
+              handleUpdateTransaction(tx as Transaction);
+            } else {
+              handleAddTransaction(tx);
+            }
+          }} 
+        />
+      )}
+
+      {/* --- ADD WALLET MODAL --- */}
+      {(isAddWalletModalOpen || editingWallet) && (
+        <AddWalletModal 
+          editingWallet={editingWallet}
+          onClose={() => {
+            setAddWalletModalOpen(false);
+            setEditingWallet(null);
+          }} 
+          onSave={(w) => {
+            if ('id' in w) {
+              handleUpdateWallet(w as Wallet);
+            } else {
+              handleAddWallet(w);
+            }
+          }} 
+        />
+      )}
+
+      {/* --- ADD CATEGORY MODAL --- */}
+      {(isAddCategoryModalOpen || editingCategory) && (
+        <AddCategoryModal 
+          editingCategory={editingCategory}
+          onClose={() => {
+            setAddCategoryModalOpen(false);
+            setEditingCategory(null);
+          }} 
+          onSave={(c) => {
+            if ('id' in c) {
+              handleUpdateCategory(c as Category);
+            } else {
+              handleAddCategory(c);
+            }
+          }} 
+        />
+      )}
+
+      {/* Confirm Dialog */}
+      {confirmDialog.isOpen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))} />
+          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-6 text-center">
+              <div className={cn("w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4", confirmDialog.isDestructive ? "bg-rose-100 text-rose-600" : "bg-blue-100 text-blue-600")}>
+                <AlertCircle className="w-6 h-6" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900 mb-2">{confirmDialog.title}</h3>
+              <p className="text-sm text-gray-500">{confirmDialog.message}</p>
+            </div>
+            <div className="p-4 bg-gray-50 flex gap-3">
+              <button 
+                onClick={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+                className="flex-1 px-4 py-2.5 bg-white border border-gray-200 text-gray-700 font-medium rounded-xl hover:bg-gray-50 transition-colors"
+              >
+                Batal
+              </button>
+              <button 
+                onClick={() => {
+                  confirmDialog.onConfirm();
+                  setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+                }}
+                className={cn(
+                  "flex-1 px-4 py-2.5 text-white font-medium rounded-xl transition-colors",
+                  confirmDialog.isDestructive ? "bg-rose-600 hover:bg-rose-700" : "bg-blue-600 hover:bg-blue-700"
+                )}
+              >
+                {confirmDialog.confirmText || (confirmDialog.isDestructive ? 'Hapus' : 'Ya')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// --- REPORTS VIEW COMPONENT ---
+function ReportsView({ transactions, categories }: { transactions: Transaction[], categories: Category[] }) {
+  const [period, setPeriod] = useState<'thisMonth' | 'lastMonth' | 'thisYear'>('thisMonth');
+
+  const filteredData = useMemo(() => {
+    const now = new Date();
+    let start: Date;
+    let end: Date;
+
+    if (period === 'thisMonth') {
+      start = startOfMonth(now);
+      end = endOfMonth(now);
+    } else if (period === 'lastMonth') {
+      const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      start = startOfMonth(lastMonth);
+      end = endOfMonth(lastMonth);
+    } else {
+      start = new Date(now.getFullYear(), 0, 1);
+      end = new Date(now.getFullYear(), 11, 31);
+    }
+
+    return transactions.filter(t => {
+      if (t.status === 'canceled') return false;
+      const d = parseISO(t.date);
+      return d >= start && d <= end;
+    });
+  }, [transactions, period]);
+
+  const barChartData = useMemo(() => {
+    if (period === 'thisYear') {
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+      return months.map((m, i) => {
+        const monthTxs = filteredData.filter(t => parseISO(t.date).getMonth() === i);
+        return {
+          name: m,
+          income: monthTxs.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0),
+          expense: monthTxs.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0),
+        };
+      });
+    } else {
+      const now = new Date();
+      const start = period === 'thisMonth' ? startOfMonth(now) : startOfMonth(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+      const end = period === 'thisMonth' ? endOfMonth(now) : endOfMonth(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+      const days = eachDayOfInterval({ start, end });
+      
+      return days.map(d => {
+        const dayTxs = filteredData.filter(t => isSameDay(parseISO(t.date), d));
+        return {
+          name: format(d, 'dd'),
+          income: dayTxs.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0),
+          expense: dayTxs.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0),
+        };
+      });
+    }
+  }, [filteredData, period]);
+
+  const pieChartData = useMemo(() => {
+    const expenses = filteredData.filter(t => t.type === 'expense');
+    const grouped = expenses.reduce((acc, t) => {
+      const cat = categories.find(c => c.id === t.categoryId);
+      const name = cat?.name || 'Lainnya';
+      acc[name] = (acc[name] || 0) + t.amount;
+      return acc;
+    }, {} as Record<string, number>);
+
+    return Object.entries(grouped).map(([name, value]) => ({ name, value }));
+  }, [filteredData, categories]);
+
+  const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+
+  const totalIncome = filteredData.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
+  const totalExpense = filteredData.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
+
+  return (
+    <div className="max-w-7xl mx-auto space-y-6">
+      {/* Period Selector */}
+      <div className="flex justify-between items-center bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+        <h2 className="text-lg font-bold text-gray-900">Analisis Keuangan</h2>
+        <div className="flex bg-gray-100 p-1 rounded-xl">
+          <button 
+            onClick={() => setPeriod('thisMonth')}
+            className={cn("px-4 py-1.5 text-sm font-medium rounded-lg transition-all", period === 'thisMonth' ? "bg-white text-blue-600 shadow-sm" : "text-gray-500")}
+          >
+            Bulan Ini
+          </button>
+          <button 
+            onClick={() => setPeriod('lastMonth')}
+            className={cn("px-4 py-1.5 text-sm font-medium rounded-lg transition-all", period === 'lastMonth' ? "bg-white text-blue-600 shadow-sm" : "text-gray-500")}
+          >
+            Bulan Lalu
+          </button>
+          <button 
+            onClick={() => setPeriod('thisYear')}
+            className={cn("px-4 py-1.5 text-sm font-medium rounded-lg transition-all", period === 'thisYear' ? "bg-white text-blue-600 shadow-sm" : "text-gray-500")}
+          >
+            Tahun Ini
+          </button>
+        </div>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+          <div className="text-sm font-medium text-gray-500 mb-1">Total Pemasukan</div>
+          <div className="text-2xl font-bold text-emerald-600">{formatRupiah(totalIncome)}</div>
+        </div>
+        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+          <div className="text-sm font-medium text-gray-500 mb-1">Total Pengeluaran</div>
+          <div className="text-2xl font-bold text-rose-600">{formatRupiah(totalExpense)}</div>
+        </div>
+        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+          <div className="text-sm font-medium text-gray-500 mb-1">Selisih</div>
+          <div className={cn("text-2xl font-bold", totalIncome - totalExpense >= 0 ? "text-blue-600" : "text-rose-600")}>
+            {formatRupiah(totalIncome - totalExpense)}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Trend Chart */}
+        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+          <h3 className="text-lg font-bold text-gray-900 mb-6">Tren Arus Kas</h3>
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <ReBarChart data={barChartData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#9ca3af'}} />
+                <YAxis axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#9ca3af'}} tickFormatter={(value) => `Rp${value/1000}k`} />
+                <Tooltip 
+                  cursor={{fill: '#f9fafb'}}
+                  contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}
+                  formatter={(value: number) => formatRupiah(value)}
+                />
+                <Bar dataKey="income" fill="#10b981" radius={[4, 4, 0, 0]} name="Masuk" />
+                <Bar dataKey="expense" fill="#ef4444" radius={[4, 4, 0, 0]} name="Keluar" />
+              </ReBarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Category Chart */}
+        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+          <h3 className="text-lg font-bold text-gray-900 mb-6">Pengeluaran Per Kategori</h3>
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <RePieChart>
+                <Pie
+                  data={pieChartData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={80}
+                  paddingAngle={5}
+                  dataKey="value"
+                >
+                  {pieChartData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip 
+                  contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}
+                  formatter={(value: number) => formatRupiah(value)}
+                />
+                <Legend verticalAlign="bottom" height={36}/>
+              </RePieChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- TRANSACTIONS VIEW COMPONENT ---
+function TransactionsView({ 
+  transactions, 
+  categories, 
+  wallets, 
+  onDelete,
+  onEdit,
+  onShowConfirm
+}: { 
+  transactions: Transaction[], 
+  categories: Category[], 
+  wallets: Wallet[],
+  onDelete: (id: string) => void,
+  onEdit: (tx: Transaction) => void,
+  onShowConfirm: (title: string, message: string, onConfirm: () => void) => void
+}) {
+  const [filterType, setFilterType] = useState<TransactionType | 'all'>('all');
+  const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
+  const [showFilters, setShowFilters] = useState(false);
+
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter(tx => {
+      const matchType = filterType === 'all' || tx.type === filterType;
+      const matchCategory = filterCategory === 'all' || tx.categoryId === filterCategory;
+      
+      const txDate = new Date(tx.date);
+      const matchStartDate = !startDate || txDate >= new Date(startDate);
+      const matchEndDate = !endDate || txDate <= new Date(endDate + 'T23:59:59');
+
+      return matchType && matchCategory && matchStartDate && matchEndDate;
+    });
+  }, [transactions, filterType, filterCategory, startDate, endDate]);
+
+  const availableCategories = useMemo(() => {
+    if (filterType === 'all') return categories;
+    if (filterType === 'transfer') return [];
+    return categories.filter(c => c.type === filterType);
+  }, [categories, filterType]);
+
+  // Reset category filter if it's not available in the new type
+  React.useEffect(() => {
+    if (filterCategory !== 'all' && filterType !== 'all') {
+      const isAvailable = availableCategories.some(c => c.id === filterCategory);
+      if (!isAvailable && filterType !== 'transfer') {
+        setFilterCategory('all');
+      }
+    }
+    if (filterType === 'transfer') {
+      setFilterCategory('all');
+    }
+  }, [filterType, availableCategories, filterCategory]);
+
+  const resetFilters = () => {
+    setFilterType('all');
+    setFilterCategory('all');
+    setStartDate('');
+    setEndDate('');
+  };
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-6 pb-20">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Riwayat Transaksi</h2>
+        <button 
+          onClick={() => setShowFilters(!showFilters)}
+          className={cn(
+            "flex items-center gap-2 px-4 py-2 rounded-xl border transition-all text-sm font-medium",
+            showFilters || filterType !== 'all' || filterCategory !== 'all' || startDate || endDate
+              ? "bg-blue-50 border-blue-200 text-blue-600" 
+              : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+          )}
+        >
+          <Filter className="w-4 h-4" />
+          Filter {(!showFilters && (filterType !== 'all' || filterCategory !== 'all' || startDate || endDate)) && "•"}
+        </button>
+      </div>
+
+      {showFilters && (
+        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm animate-in fade-in slide-in-from-top-4 duration-200">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Tipe</label>
+              <select 
+                value={filterType} 
+                onChange={(e) => setFilterType(e.target.value as any)}
+                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+              >
+                <option value="all">Semua Tipe</option>
+                <option value="expense">Pengeluaran</option>
+                <option value="income">Pemasukan</option>
+                <option value="transfer">Transfer</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Kategori</label>
+              <select 
+                value={filterCategory} 
+                onChange={(e) => setFilterCategory(e.target.value)}
+                disabled={filterType === 'transfer'}
+                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none disabled:opacity-50"
+              >
+                <option value="all">Semua Kategori</option>
+                {availableCategories.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Mulai Dari</label>
+              <div className="relative">
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input 
+                  type="date" 
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Sampai Dengan</label>
+              <div className="relative">
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input 
+                  type="date" 
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-6 flex justify-end gap-3">
+            <button 
+              onClick={resetFilters}
+              className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900"
+            >
+              Reset Filter
+            </button>
+            <button 
+              onClick={() => setShowFilters(false)}
+              className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-xl hover:bg-gray-800"
+            >
+              Terapkan
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="divide-y divide-gray-50">
+          {filteredTransactions.length === 0 ? (
+            <div className="p-12 text-center text-gray-500">
+              <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                <ArrowRightLeft className="w-8 h-8 text-gray-300" />
+              </div>
+              <p>Tidak ada transaksi yang sesuai dengan filter.</p>
+              {(filterType !== 'all' || filterCategory !== 'all' || startDate || endDate) && (
+                <button onClick={resetFilters} className="mt-4 text-blue-600 font-medium hover:underline">
+                  Bersihkan Filter
+                </button>
+              )}
+            </div>
+          ) : (
+            filteredTransactions.map(tx => {
+              const isIncome = tx.type === 'income';
+              const isTransfer = tx.type === 'transfer';
+              const category = categories.find(c => c.id === tx.categoryId);
+              const wallet = wallets.find(w => w.id === tx.walletId);
+              const toWallet = wallets.find(w => w.id === tx.toWalletId);
+
+              return (
+                <div key={tx.id} className={cn("p-4 sm:p-5 flex items-center gap-3 sm:gap-4 hover:bg-gray-50 transition-colors group", tx.status === 'canceled' && "opacity-60")}>
+                  <div className={cn("w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center shrink-0", isTransfer ? "bg-gray-100 text-gray-600" : category?.color || "bg-gray-100 text-gray-600")}>
+                    {isTransfer ? <ArrowRightLeft className="w-5 h-5 sm:w-6 sm:h-6" /> : getIconComponent(category?.icon || 'WalletIcon')}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className={cn("font-bold sm:font-medium text-gray-900 truncate text-sm sm:text-base flex items-center gap-2", tx.status === 'canceled' && "line-through text-gray-500")}>
+                      {tx.note || (isTransfer ? 'Transfer' : category?.name)}
+                      {tx.status === 'canceled' && <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded font-medium no-underline">Dibatalkan</span>}
+                    </div>
+                    <div className="text-[10px] sm:text-sm text-gray-500 flex flex-wrap items-center gap-x-1.5 mt-0.5">
+                      <span>{format(parseISO(tx.date), 'dd MMM yyyy, HH:mm', { locale: id })}</span>
+                      <span className="hidden sm:inline">•</span>
+                      <span className="truncate">{isTransfer ? `${wallet?.name} → ${toWallet?.name}` : wallet?.name}</span>
+                    </div>
+                  </div>
+                  <div className="flex flex-col sm:flex-row items-end sm:items-center gap-1 sm:gap-4">
+                    <div className={cn("font-bold sm:font-semibold whitespace-nowrap text-right text-sm sm:text-base", tx.status === 'canceled' ? "text-gray-400 line-through" : isIncome ? "text-emerald-600" : isTransfer ? "text-gray-900" : "text-rose-600")}>
+                      {isIncome ? '+' : isTransfer ? '' : '-'}{formatRupiah(tx.amount)}
+                    </div>
+                    {tx.status !== 'canceled' && (
+                      <div className="flex items-center gap-1 sm:gap-2">
+                        <button 
+                          onClick={() => onEdit(tx)}
+                          className="p-1.5 sm:p-2 text-gray-400 sm:text-gray-300 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all sm:opacity-0 sm:group-hover:opacity-100"
+                        >
+                          <Pencil className="w-3.5 h-3.5 sm:w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => {
+                            onShowConfirm(
+                              'Batalkan Transaksi',
+                              'Batalkan transaksi ini? Saldo dompet akan dikembalikan.',
+                              () => onDelete(tx.id)
+                            );
+                          }}
+                          className="p-1.5 sm:p-2 text-gray-400 sm:text-gray-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all sm:opacity-0 sm:group-hover:opacity-100"
+                        >
+                          <Trash2 className="w-3.5 h-3.5 sm:w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- WALLETS MANAGE VIEW ---
+function WalletsManageView({ 
+  wallets, 
+  onEdit, 
+  onDelete,
+  onAdd,
+  onShowConfirm
+}: { 
+  wallets: Wallet[], 
+  onEdit: (w: Wallet) => void, 
+  onDelete: (id: string) => void,
+  onAdd: () => void,
+  onShowConfirm: (title: string, message: string, onConfirm: () => void) => void
+}) {
+  return (
+    <div className="max-w-4xl mx-auto space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold text-gray-900">Kelola Dompet</h2>
+        <button 
+          onClick={onAdd}
+          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl font-medium hover:bg-blue-700 transition-colors"
+        >
+          <Plus className="w-4 h-4" /> Tambah
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {wallets.map(wallet => (
+          <div key={wallet.id} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between group">
+            <div className="flex items-center gap-4">
+              <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center text-white", wallet.color)}>
+                {getIconComponent(wallet.icon)}
+              </div>
+              <div>
+                <div className="font-bold text-gray-900">{wallet.name}</div>
+                <div className="text-sm text-gray-500">{formatRupiah(wallet.balance)}</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button 
+                onClick={() => onEdit(wallet)}
+                className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+              >
+                <Pencil className="w-4 h-4" />
+              </button>
+              <button 
+                onClick={() => {
+                  onShowConfirm(
+                    'Hapus Dompet',
+                    `Hapus dompet ${wallet.name}?`,
+                    () => onDelete(wallet.id)
+                  );
+                }}
+                className="p-2 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// --- CATEGORIES MANAGE VIEW ---
+function CategoriesManageView({ 
+  categories, 
+  onEdit, 
+  onDelete,
+  onAdd,
+  onShowConfirm
+}: { 
+  categories: Category[], 
+  onEdit: (c: Category) => void, 
+  onDelete: (id: string) => void,
+  onAdd: () => void,
+  onShowConfirm: (title: string, message: string, onConfirm: () => void) => void
+}) {
+  const [typeFilter, setTypeFilter] = useState<'expense' | 'income'>('expense');
+
+  const filtered = categories.filter(c => c.type === typeFilter);
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold text-gray-900">Kelola Kategori</h2>
+        <button 
+          onClick={onAdd}
+          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl font-medium hover:bg-blue-700 transition-colors"
+        >
+          <Plus className="w-4 h-4" /> Tambah
+        </button>
+      </div>
+
+      <div className="flex bg-white p-1 rounded-xl border border-gray-100 w-fit">
+        <button 
+          onClick={() => setTypeFilter('expense')}
+          className={cn("px-6 py-2 text-sm font-medium rounded-lg transition-all", typeFilter === 'expense' ? "bg-gray-900 text-white shadow-sm" : "text-gray-500 hover:text-gray-700")}
+        >
+          Pengeluaran
+        </button>
+        <button 
+          onClick={() => setTypeFilter('income')}
+          className={cn("px-6 py-2 text-sm font-medium rounded-lg transition-all", typeFilter === 'income' ? "bg-gray-900 text-white shadow-sm" : "text-gray-500 hover:text-gray-700")}
+        >
+          Pemasukan
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {filtered.map(cat => (
+          <div key={cat.id} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between group">
+            <div className="flex items-center gap-3">
+              <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", cat.color)}>
+                {getIconComponent(cat.icon)}
+              </div>
+              <span className="font-medium text-gray-900">{cat.name}</span>
+            </div>
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button 
+                onClick={() => onEdit(cat)}
+                className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+              >
+                <Pencil className="w-4 h-4" />
+              </button>
+              <button 
+                onClick={() => {
+                  onShowConfirm(
+                    'Hapus Kategori',
+                    `Hapus kategori ${cat.name}?`,
+                    () => onDelete(cat.id)
+                  );
+                }}
+                className="p-2 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// --- ADD CATEGORY MODAL ---
+function AddCategoryModal({ 
+  editingCategory,
+  onClose, 
+  onSave 
+}: { 
+  editingCategory: Category | null,
+  onClose: () => void, 
+  onSave: (cat: Category | Omit<Category, 'id'>) => void 
+}) {
+  const [name, setName] = useState(editingCategory?.name || '');
+  const [type, setType] = useState<'expense' | 'income'>(editingCategory?.type || 'expense');
+  const [icon, setIcon] = useState(editingCategory?.icon || 'Tag');
+  const [color, setColor] = useState(editingCategory?.color || 'text-blue-600 bg-blue-100');
+
+  const COLORS = [
+    { name: 'Blue', value: 'text-blue-600 bg-blue-100' },
+    { name: 'Emerald', value: 'text-emerald-600 bg-emerald-100' },
+    { name: 'Rose', value: 'text-rose-600 bg-rose-100' },
+    { name: 'Amber', value: 'text-amber-600 bg-amber-100' },
+    { name: 'Purple', value: 'text-purple-600 bg-purple-100' },
+    { name: 'Orange', value: 'text-orange-600 bg-orange-100' },
+  ];
+
+  const ICONS = [
+    { name: 'Tag', value: 'Tag' },
+    { name: 'Coffee', value: 'Coffee' },
+    { name: 'Shopping', value: 'ShoppingCart' },
+    { name: 'Car', value: 'Car' },
+    { name: 'Work', value: 'Briefcase' },
+    { name: 'Gift', value: 'Gift' },
+  ];
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name) return;
+    
+    const data = {
+      name,
+      type,
+      icon,
+      color
+    };
+
+    if (editingCategory) {
+      onSave({ ...data, id: editingCategory.id });
+    } else {
+      onSave(data);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-t-3xl sm:rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-200">
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-gray-900">{editingCategory ? 'Edit Kategori' : 'Tambah Kategori'}</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 rounded-md hover:bg-gray-100">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+          <div className="flex p-1 bg-gray-100 rounded-xl">
+            <button 
+              type="button"
+              onClick={() => setType('expense')}
+              className={cn("flex-1 py-2 text-sm font-medium rounded-lg transition-all", type === 'expense' ? "bg-white text-gray-900 shadow-sm" : "text-gray-500")}
+            >
+              Pengeluaran
+            </button>
+            <button 
+              type="button"
+              onClick={() => setType('income')}
+              className={cn("flex-1 py-2 text-sm font-medium rounded-lg transition-all", type === 'income' ? "bg-white text-gray-900 shadow-sm" : "text-gray-500")}
+            >
+              Pemasukan
+            </button>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Nama Kategori</label>
+            <input 
+              type="text" 
+              required 
+              value={name} 
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Cth: Hiburan"
+              className="block w-full px-3 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Warna</label>
+            <div className="flex flex-wrap gap-3">
+              {COLORS.map(c => (
+                <button
+                  key={c.value}
+                  type="button"
+                  onClick={() => setColor(c.value)}
+                  className={cn(
+                    "w-8 h-8 rounded-full transition-all ring-offset-2",
+                    c.value.split(' ')[1], // Get bg class
+                    color === c.value ? "ring-2 ring-blue-500 scale-110" : "hover:scale-105"
+                  )}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Ikon</label>
+            <div className="flex flex-wrap gap-3">
+              {ICONS.map(i => (
+                <button
+                  key={i.value}
+                  type="button"
+                  onClick={() => setIcon(i.value)}
+                  className={cn(
+                    "w-10 h-10 rounded-xl flex items-center justify-center transition-all border-2",
+                    icon === i.value ? "border-blue-500 bg-blue-50 text-blue-600" : "border-gray-100 text-gray-400 hover:border-gray-200"
+                  )}
+                >
+                  {getIconComponent(i.value)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="pt-4 flex gap-3">
+            <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50">
+              Batal
+            </button>
+            <button type="submit" className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-xl hover:bg-blue-700">
+              Simpan
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// --- ADD WALLET MODAL ---
+function AddWalletModal({ 
+  editingWallet,
+  onClose, 
+  onSave 
+}: { 
+  editingWallet: Wallet | null,
+  onClose: () => void, 
+  onSave: (wallet: Wallet | Omit<Wallet, 'id'>) => void 
+}) {
+  const [name, setName] = useState(editingWallet?.name || '');
+  const [balance, setBalance] = useState(editingWallet?.balance.toString() || '');
+  const [color, setColor] = useState(editingWallet?.color || 'bg-blue-600');
+  const [icon, setIcon] = useState(editingWallet?.icon || 'WalletIcon');
+
+  const COLORS = [
+    { name: 'Emerald', value: 'bg-emerald-500' },
+    { name: 'Blue', value: 'bg-blue-600' },
+    { name: 'Sky', value: 'bg-sky-500' },
+    { name: 'Rose', value: 'bg-rose-500' },
+    { name: 'Amber', value: 'bg-amber-500' },
+    { name: 'Purple', value: 'bg-purple-600' },
+  ];
+
+  const ICONS = [
+    { name: 'Wallet', value: 'WalletIcon' },
+    { name: 'Card', value: 'CreditCard' },
+    { name: 'Bank', value: 'Landmark' },
+  ];
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name || !balance) return;
+    
+    const data = {
+      name,
+      balance: Number(balance),
+      color,
+      icon
+    };
+
+    if (editingWallet) {
+      onSave({ ...data, id: editingWallet.id });
+    } else {
+      onSave(data);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-t-3xl sm:rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-200">
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-gray-900">{editingWallet ? 'Edit Dompet' : 'Tambah Dompet Baru'}</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 rounded-md hover:bg-gray-100">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Nama Dompet</label>
+            <input 
+              type="text" 
+              required 
+              value={name} 
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Cth: Tabungan Haji"
+              className="block w-full px-3 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Saldo Awal</label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <span className="text-gray-500 sm:text-sm">Rp</span>
+              </div>
+              <input 
+                type="number" 
+                required 
+                value={balance} 
+                onChange={(e) => setBalance(e.target.value)}
+                placeholder="0"
+                className="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Warna</label>
+            <div className="flex flex-wrap gap-3">
+              {COLORS.map(c => (
+                <button
+                  key={c.value}
+                  type="button"
+                  onClick={() => setColor(c.value)}
+                  className={cn(
+                    "w-8 h-8 rounded-full transition-all ring-offset-2",
+                    c.value,
+                    color === c.value ? "ring-2 ring-blue-500 scale-110" : "hover:scale-105"
+                  )}
+                />
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Ikon</label>
+            <div className="flex gap-3">
+              {ICONS.map(i => (
+                <button
+                  key={i.value}
+                  type="button"
+                  onClick={() => setIcon(i.value)}
+                  className={cn(
+                    "w-12 h-12 rounded-xl flex items-center justify-center transition-all border-2",
+                    icon === i.value ? "border-blue-500 bg-blue-50 text-blue-600" : "border-gray-100 text-gray-400 hover:border-gray-200"
+                  )}
+                >
+                  {getIconComponent(i.value)}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="pt-4 flex gap-3">
+            <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50">
+              Batal
+            </button>
+            <button type="submit" className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-xl hover:bg-blue-700">
+              Simpan
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function AddTransactionModal({ 
+  wallets, 
+  categories, 
+  editingTransaction,
+  onClose, 
+  onSave 
+}: { 
+  wallets: Wallet[], 
+  categories: Category[], 
+  editingTransaction: Transaction | null,
+  onClose: () => void, 
+  onSave: (tx: Transaction | Omit<Transaction, 'id'>) => void 
+}) {
+  const [type, setType] = useState<TransactionType>(editingTransaction?.type || 'expense');
+  const [amount, setAmount] = useState(editingTransaction?.amount.toString() || '');
+  const [walletId, setWalletId] = useState(editingTransaction?.walletId || wallets[0]?.id || '');
+  const [toWalletId, setToWalletId] = useState(editingTransaction?.toWalletId || wallets[1]?.id || '');
+  const [categoryId, setCategoryId] = useState(editingTransaction?.categoryId || '');
+  const [note, setNote] = useState(editingTransaction?.note || '');
+  const [date, setDate] = useState(editingTransaction ? editingTransaction.date.split('T')[0] : new Date().toISOString().split('T')[0]);
+
+  const availableCategories = categories.filter(c => c.type === type);
+
+  React.useEffect(() => {
+    if (type !== 'transfer' && availableCategories.length > 0 && !availableCategories.find(c => c.id === categoryId)) {
+      setCategoryId(availableCategories[0].id);
+    }
+  }, [type, availableCategories, categoryId]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!amount || isNaN(Number(amount))) return;
+    
+    const data = {
+      type,
+      amount: Number(amount),
+      walletId,
+      toWalletId: type === 'transfer' ? toWalletId : undefined,
+      categoryId: type === 'transfer' ? '' : categoryId,
+      note,
+      date: new Date(date).toISOString()
+    };
+
+    if (editingTransaction) {
+      onSave({ ...data, id: editingTransaction.id });
+    } else {
+      onSave(data);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      
+      <div className="relative bg-white rounded-t-3xl sm:rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh] animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-200">
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-white">
+          <h3 className="text-lg font-semibold text-gray-900">{editingTransaction ? 'Edit Transaksi' : 'Tambah Transaksi'}</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 rounded-md hover:bg-gray-100">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto p-6">
+          <div className="flex p-1 bg-gray-100 rounded-xl mb-6">
+            {(['expense', 'income', 'transfer'] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setType(t)}
+                className={cn(
+                  "flex-1 py-2 text-sm font-medium rounded-lg capitalize transition-all",
+                  type === t ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                )}
+              >
+                {t === 'expense' ? 'Keluar' : t === 'income' ? 'Masuk' : 'Transfer'}
+              </button>
+            ))}
+          </div>
+
+          <form id="tx-form" onSubmit={handleSubmit} className="space-y-5">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Jumlah (Rp)</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <span className="text-gray-500 sm:text-sm">Rp</span>
+                </div>
+                <input
+                  type="number"
+                  required
+                  min="0"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  className="block w-full pl-10 pr-3 py-3 sm:py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-shadow text-lg font-semibold"
+                  placeholder="0"
+                />
+              </div>
+            </div>
+
+            {type === 'transfer' ? (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Dari Dompet</label>
+                  <select value={walletId} onChange={(e) => setWalletId(e.target.value)} className="block w-full px-3 py-3 sm:py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                    {wallets.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Ke Dompet</label>
+                  <select value={toWalletId} onChange={(e) => setToWalletId(e.target.value)} className="block w-full px-3 py-3 sm:py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                    {wallets.filter(w => w.id !== walletId).map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                  </select>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Dompet</label>
+                <select value={walletId} onChange={(e) => setWalletId(e.target.value)} className="block w-full px-3 py-3 sm:py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                  {wallets.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                </select>
+              </div>
+            )}
+
+            {type !== 'transfer' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Kategori</label>
+                <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} required className="block w-full px-3 py-3 sm:py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                  {availableCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal</label>
+              <input type="date" required value={date} onChange={(e) => setDate(e.target.value)} className="block w-full px-3 py-3 sm:py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm" />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Catatan</label>
+              <input type="text" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Cth: Makan siang" className="block w-full px-3 py-3 sm:py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm" />
+            </div>
+          </form>
+        </div>
+
+        <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-end gap-3 pb-safe">
+          <button type="button" onClick={onClose} className="px-4 py-3 sm:py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+            Batal
+          </button>
+          <button type="submit" form="tx-form" className="px-4 py-3 sm:py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-xl hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+            Simpan Transaksi
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

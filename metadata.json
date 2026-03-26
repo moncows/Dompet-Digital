@@ -1,0 +1,5 @@
+{
+  "name": "DompetKu - Finance Tracker",
+  "description": "Aplikasi pencatat keuangan pribadi dengan fitur multiple dompet (wallets) untuk melacak pemasukan dan pengeluaran.",
+  "requestFramePermissions": []
+}
