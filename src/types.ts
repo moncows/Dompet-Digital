@@ -18,6 +18,7 @@ export type Transaction = {
   walletId: string;
   toWalletId?: string; // Only for transfer
   date: string;
+  createdAt?: string;
   note: string;
   status?: 'completed' | 'canceled';
   clientId?: string;

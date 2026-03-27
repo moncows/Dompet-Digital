@@ -126,18 +126,113 @@ import { Wallet, Transaction, Category, TransactionType, TransactionMutationType
 
 const createClientId = () => {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    return crypto.randomUUID();
+    return `tx-${Date.now()}-${crypto.randomUUID()}`;
   }
 
   return `tx-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+};
+
+const extractTimestampFromTransactionId = (value?: string) => {
+  if (!value) {
+    return undefined;
+  }
+
+  const match = value.match(/^tx-(\d{10,})-/);
+  if (!match) {
+    return undefined;
+  }
+
+  const parsedTimestamp = Number(match[1]);
+  if (Number.isNaN(parsedTimestamp)) {
+    return undefined;
+  }
+
+  return new Date(parsedTimestamp).toISOString();
+};
+
+const resolveTransactionCreatedAt = (transaction: Transaction) => {
+  return (
+    transaction.createdAt ??
+    extractTimestampFromTransactionId(transaction.clientId ?? transaction.id) ??
+    transaction.date
+  );
+};
+
+const getTransactionEffectiveDate = (transaction: Transaction) => {
+  const recordedDate = parseISO(transaction.date);
+  const createdAt = parseISO(resolveTransactionCreatedAt(transaction));
+
+  if (Number.isNaN(recordedDate.getTime()) || Number.isNaN(createdAt.getTime())) {
+    return transaction.date;
+  }
+
+  const combinedLocalDate = new Date(
+    recordedDate.getFullYear(),
+    recordedDate.getMonth(),
+    recordedDate.getDate(),
+    createdAt.getHours(),
+    createdAt.getMinutes(),
+    createdAt.getSeconds(),
+    createdAt.getMilliseconds(),
+  );
+
+  return combinedLocalDate.toISOString();
+};
+
+const formatTransactionDateLabel = (transaction: Transaction, pattern: string) => {
+  return format(parseISO(getTransactionEffectiveDate(transaction)), pattern, { locale: id });
 };
 
 const normalizeTransactions = (items: Transaction[]) => {
   return items.map((transaction) => ({
     ...transaction,
     clientId: transaction.clientId ?? transaction.id,
+    createdAt: resolveTransactionCreatedAt(transaction),
     syncStatus: transaction.syncStatus ?? 'synced',
   }));
+};
+
+const formatDateInputValue = (dateValue?: string) => {
+  const sourceDate = dateValue ? parseISO(dateValue) : new Date();
+  return format(sourceDate, 'yyyy-MM-dd');
+};
+
+const buildTransactionDate = (dateValue: string, referenceDate?: string) => {
+  const [year, month, day] = dateValue.split('-').map(Number);
+  const baseTime = referenceDate ? parseISO(referenceDate) : new Date();
+  const localDate = new Date(
+    year,
+    month - 1,
+    day,
+    baseTime.getHours(),
+    baseTime.getMinutes(),
+    baseTime.getSeconds(),
+    baseTime.getMilliseconds(),
+  );
+
+  return localDate.toISOString();
+};
+
+const sortTransactionsDescending = (items: Transaction[]) => {
+  return [...items].sort((left, right) => {
+    const dateDiff =
+      new Date(getTransactionEffectiveDate(right)).getTime() -
+      new Date(getTransactionEffectiveDate(left)).getTime();
+
+    if (dateDiff !== 0) {
+      return dateDiff;
+    }
+
+    const createdAtDiff =
+      new Date(resolveTransactionCreatedAt(right)).getTime() -
+      new Date(resolveTransactionCreatedAt(left)).getTime();
+
+    if (createdAtDiff !== 0) {
+      return createdAtDiff;
+    }
+
+    return right.id.localeCompare(left.id);
+  });
 };
 
 const getWalletTransactionDelta = (walletId: string, transactions: Transaction[]) => {
@@ -195,7 +290,7 @@ const normalizeSnapshot = (snapshot: AppSnapshot): AppSnapshot => {
   return {
     wallets: normalizeWallets(snapshot.wallets, normalizedTransactions),
     categories: snapshot.categories,
-    transactions: normalizedTransactions,
+    transactions: sortTransactionsDescending(normalizedTransactions),
   };
 };
 
@@ -392,6 +487,8 @@ export default function App() {
   const hasBootstrappedRemoteRef = React.useRef(false);
   const currentSnapshotRef = React.useRef<AppSnapshot>(DEFAULT_APP_SNAPSHOT);
   const latestRemoteSnapshotRef = React.useRef<AppSnapshot | null>(null);
+  const deferredRemoteSnapshotRef = React.useRef<AppSnapshot | null>(null);
+  const shouldReloadRemoteSnapshotRef = React.useRef(false);
   const pendingSyncCountRef = React.useRef(0);
   const skipNextReferenceSyncRef = React.useRef(false);
   const [isStorageHydrated, setIsStorageHydrated] = useState(false);
@@ -513,6 +610,53 @@ export default function App() {
     setTransactions(normalizedSnapshot.transactions);
   }, []);
 
+  const applyRemoteSnapshotWithFeedback = React.useCallback((snapshot: AppSnapshot) => {
+    const normalizedSnapshot = normalizeSnapshot(snapshot);
+    const hasRemoteChange = serializeSnapshot(normalizedSnapshot) !== serializeSnapshot(currentSnapshotRef.current);
+
+    applyRemoteSnapshot(normalizedSnapshot);
+
+    if (hasRemoteChange) {
+      showTemporarySyncDialog({
+        tone: 'info',
+        title: 'Data Diperbarui',
+        description: 'Perubahan terbaru berhasil dimuat dari akun Anda.',
+        detail: 'Perangkat ini sekarang memakai data yang paling mutakhir.',
+      });
+    }
+  }, [applyRemoteSnapshot, showTemporarySyncDialog]);
+
+  const flushDeferredRemoteSnapshot = React.useCallback(async () => {
+    if (!userId || pendingSyncCountRef.current > 0 || syncInFlightRef.current) {
+      return;
+    }
+
+    const deferredSnapshot = deferredRemoteSnapshotRef.current;
+    deferredRemoteSnapshotRef.current = null;
+
+    if (deferredSnapshot) {
+      applyRemoteSnapshotWithFeedback(deferredSnapshot);
+      return;
+    }
+
+    if (!shouldReloadRemoteSnapshotRef.current || !isFirebaseConfigured()) {
+      return;
+    }
+
+    shouldReloadRemoteSnapshotRef.current = false;
+
+    try {
+      const remoteSnapshot = await loadRemoteSnapshot(userId);
+      if (!remoteSnapshot) {
+        return;
+      }
+
+      applyRemoteSnapshotWithFeedback(remoteSnapshot);
+    } catch {
+      setSyncNotice('Perubahan terbaru belum dapat dimuat saat ini.');
+    }
+  }, [userId, applyRemoteSnapshotWithFeedback]);
+
   React.useEffect(() => {
     return () => {
       clearSyncDialogTimeout();
@@ -550,10 +694,12 @@ export default function App() {
           return;
         }
 
-        setWallets(resolvedSnapshot.wallets);
-        setCategories(resolvedSnapshot.categories);
-        setTransactions(normalizeTransactions(resolvedSnapshot.transactions));
-        currentSnapshotRef.current = normalizeSnapshot(resolvedSnapshot);
+        const normalizedSnapshot = normalizeSnapshot(resolvedSnapshot);
+
+        setWallets(normalizedSnapshot.wallets);
+        setCategories(normalizedSnapshot.categories);
+        setTransactions(normalizedSnapshot.transactions);
+        currentSnapshotRef.current = normalizedSnapshot;
         setPendingSyncCount(queuedMutationsCount);
       } catch {
         if (!isCancelled) {
@@ -778,28 +924,19 @@ export default function App() {
 
         const normalizedSnapshot = normalizeSnapshot(remoteSnapshot);
         latestRemoteSnapshotRef.current = normalizedSnapshot;
-        const hasRemoteChange = serializeSnapshot(normalizedSnapshot) !== serializeSnapshot(currentSnapshotRef.current);
 
         if (pendingSyncCountRef.current > 0 || syncInFlightRef.current) {
+          deferredRemoteSnapshotRef.current = normalizedSnapshot;
           return;
         }
 
-        applyRemoteSnapshot(normalizedSnapshot);
-
-        if (hasRemoteChange) {
-          showTemporarySyncDialog({
-            tone: 'info',
-            title: 'Data Diperbarui',
-            description: 'Perubahan terbaru berhasil dimuat dari akun Anda.',
-            detail: 'Perangkat ini sekarang memakai data yang paling mutakhir.',
-          });
-        }
+        applyRemoteSnapshotWithFeedback(normalizedSnapshot);
       },
       () => {
         setSyncNotice('Perubahan terbaru belum dapat dimuat saat ini.');
       },
     );
-  }, [userId, isStorageHydrated, isRemoteReady, applyRemoteSnapshot]);
+  }, [userId, isStorageHydrated, isRemoteReady, applyRemoteSnapshotWithFeedback]);
 
   React.useEffect(() => {
     if (!userId || !isStorageHydrated || !isRemoteReady || !isOnline || !isFirebaseConfigured()) {
@@ -810,6 +947,7 @@ export default function App() {
       userId,
       () => {
         if (pendingSyncCountRef.current > 0 || syncInFlightRef.current) {
+          shouldReloadRemoteSnapshotRef.current = true;
           return;
         }
 
@@ -820,19 +958,7 @@ export default function App() {
               return;
             }
 
-            const normalizedSnapshot = normalizeSnapshot(remoteSnapshot);
-            const hasRemoteChange = serializeSnapshot(normalizedSnapshot) !== serializeSnapshot(currentSnapshotRef.current);
-
-            applyRemoteSnapshot(normalizedSnapshot);
-
-            if (hasRemoteChange) {
-              showTemporarySyncDialog({
-                tone: 'info',
-                title: 'Data Diperbarui',
-                description: 'Perubahan terbaru berhasil dimuat dari akun Anda.',
-                detail: 'Perangkat ini sekarang memakai data yang paling mutakhir.',
-              });
-            }
+            applyRemoteSnapshotWithFeedback(remoteSnapshot);
           } catch {
             setSyncNotice('Perubahan terbaru belum dapat dimuat saat ini.');
           }
@@ -842,7 +968,7 @@ export default function App() {
         setSyncNotice('Perubahan terbaru belum dapat dimuat saat ini.');
       },
     );
-  }, [userId, isStorageHydrated, isRemoteReady, isOnline, applyRemoteSnapshot, showTemporarySyncDialog]);
+  }, [userId, isStorageHydrated, isRemoteReady, isOnline, applyRemoteSnapshotWithFeedback]);
 
   React.useEffect(() => {
     if (!isStorageHydrated || !userId) {
@@ -887,6 +1013,12 @@ export default function App() {
   }, [pendingSyncCount]);
 
   React.useEffect(() => {
+    if (pendingSyncCount === 0) {
+      void flushDeferredRemoteSnapshot();
+    }
+  }, [pendingSyncCount, flushDeferredRemoteSnapshot]);
+
+  React.useEffect(() => {
     localStorage.setItem(THEME_STORAGE_KEY, theme);
     applyTheme(theme);
   }, [theme]);
@@ -917,10 +1049,12 @@ export default function App() {
   const refreshPendingSyncCount = async () => {
     if (!userId) {
       setPendingSyncCount(0);
-      return;
+      return 0;
     }
 
-    setPendingSyncCount(await getPendingTransactionCount(userId));
+    const nextPendingCount = await getPendingTransactionCount(userId);
+    setPendingSyncCount(nextPendingCount);
+    return nextPendingCount;
   };
 
   const updateTransactionSyncState = (transactionId: string, syncStatus: Transaction['syncStatus'], syncError?: string) => {
@@ -943,6 +1077,7 @@ export default function App() {
     }
 
     syncInFlightRef.current = true;
+    let remainingPendingCount = pendingSyncCountRef.current;
 
     try {
       const pendingMutations = await listTransactionMutations(userId);
@@ -970,7 +1105,7 @@ export default function App() {
         },
       });
 
-      await refreshPendingSyncCount();
+      remainingPendingCount = await refreshPendingSyncCount();
 
       if (result.syncedCount > 0) {
         setSyncNotice(`${result.syncedCount} perubahan berhasil disinkronkan.`);
@@ -1001,6 +1136,10 @@ export default function App() {
       }
     } finally {
       syncInFlightRef.current = false;
+
+      if (remainingPendingCount === 0) {
+        void flushDeferredRemoteSnapshot();
+      }
     }
   };
 
@@ -1063,7 +1202,7 @@ export default function App() {
     , [currentMonthTransactions]);
 
   const filteredTransactions = useMemo(() => {
-    let filtered = [...transactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    let filtered = sortTransactionsDescending(transactions);
     if (selectedWalletFilter) {
       filtered = filtered.filter(t => t.walletId === selectedWalletFilter || t.toWalletId === selectedWalletFilter);
     }
@@ -1135,10 +1274,11 @@ export default function App() {
       ...newTx,
       id: clientId,
       clientId,
+      createdAt: newTx.createdAt ?? new Date().toISOString(),
       syncStatus: 'pending'
     };
 
-    setTransactions(prev => [transaction, ...prev]);
+    setTransactions(prev => sortTransactionsDescending([transaction, ...prev]));
     void queueTransactionChange('create', transaction);
     setAddModalOpen(false);
   };
@@ -1149,11 +1289,12 @@ export default function App() {
     const nextTransaction: Transaction = {
       ...updatedTx,
       clientId: updatedTx.clientId ?? updatedTx.id,
+      createdAt: updatedTx.createdAt ?? new Date().toISOString(),
       syncStatus: 'pending',
       syncError: undefined,
     };
 
-    setTransactions(prev => prev.map(t => t.id === nextTransaction.id ? nextTransaction : t));
+    setTransactions(prev => sortTransactionsDescending(prev.map(t => t.id === nextTransaction.id ? nextTransaction : t)));
     void queueTransactionChange('update', nextTransaction);
     setEditingTransaction(null);
   };
@@ -1170,7 +1311,7 @@ export default function App() {
       syncError: undefined,
     };
 
-    setTransactions(prev => prev.map(t => t.id === id ? canceledTransaction : t));
+    setTransactions(prev => sortTransactionsDescending(prev.map(t => t.id === id ? canceledTransaction : t)));
     void queueTransactionChange('cancel', canceledTransaction);
   };
 
@@ -1514,7 +1655,7 @@ export default function App() {
                             {tx.note || (isTransfer ? 'Transfer' : category?.name)}
                             {tx.status === 'canceled' && <span className="text-[9px] bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 px-1.5 py-0.5 rounded font-medium no-underline">Dibatalkan</span>}
                           </div>
-                          <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">{wallet?.name} • {format(parseISO(tx.date), 'dd MMM', { locale: id })}</div>
+                          <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">{wallet?.name} • {formatTransactionDateLabel(tx, 'dd MMM')}</div>
                         </div>
                         <div className={cn("font-bold whitespace-nowrap text-right text-sm", tx.status === 'canceled' ? "text-gray-400 dark:text-gray-500 line-through" : isIncome ? "text-emerald-600 dark:text-emerald-400" : isTransfer ? "text-gray-900 dark:text-white" : "text-rose-600 dark:text-rose-400")}>
                           {isIncome ? '+' : isTransfer ? '' : '-'}{formatRupiah(tx.amount)}
@@ -1779,7 +1920,7 @@ export default function App() {
                                   {tx.status === 'canceled' && <span className="text-[10px] bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 px-2 py-0.5 rounded font-medium no-underline">Dibatalkan</span>}
                                 </div>
                                 <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1.5 mt-0.5">
-                                  <span>{format(parseISO(tx.date), 'dd MMM yyyy', { locale: id })}</span>
+                                  <span>{formatTransactionDateLabel(tx, 'dd MMM yyyy')}</span>
                                   <span>•</span>
                                   <span className="truncate">{isTransfer ? `${wallet?.name} → ${toWallet?.name}` : wallet?.name}</span>
                                 </div>
@@ -2428,7 +2569,7 @@ function TransactionsView({
                       {tx.status === 'canceled' && <span className="text-[10px] bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 px-2 py-0.5 rounded font-medium no-underline">Dibatalkan</span>}
                     </div>
                     <div className="text-[10px] sm:text-sm text-gray-500 dark:text-gray-400 flex flex-wrap items-center gap-x-1.5 mt-0.5">
-                      <span>{format(parseISO(tx.date), 'dd MMM yyyy, HH:mm', { locale: id })}</span>
+                      <span>{formatTransactionDateLabel(tx, 'dd MMM yyyy, HH:mm')}</span>
                       <span className="hidden sm:inline">•</span>
                       <span className="truncate">{isTransfer ? `${wallet?.name} → ${toWallet?.name}` : wallet?.name}</span>
                     </div>
@@ -2924,7 +3065,7 @@ function AddTransactionModal({
   const [toWalletId, setToWalletId] = useState(editingTransaction?.toWalletId || wallets[1]?.id || '');
   const [categoryId, setCategoryId] = useState(editingTransaction?.categoryId || '');
   const [note, setNote] = useState(editingTransaction?.note || '');
-  const [date, setDate] = useState(editingTransaction ? editingTransaction.date.split('T')[0] : new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(formatDateInputValue(editingTransaction?.date));
 
   const availableCategories = categories.filter(c => c.type === type);
 
@@ -2945,7 +3086,8 @@ function AddTransactionModal({
       toWalletId: type === 'transfer' ? toWalletId : undefined,
       categoryId: type === 'transfer' ? '' : categoryId,
       note,
-      date: new Date(date).toISOString()
+      date: buildTransactionDate(date, editingTransaction?.date),
+      createdAt: editingTransaction?.createdAt ?? new Date().toISOString(),
     };
 
     if (editingTransaction) {

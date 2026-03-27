@@ -143,6 +143,7 @@ function serializeTransaction(transaction: Transaction) {
     walletId: transaction.walletId,
     toWalletId: transaction.toWalletId ?? null,
     date: transaction.date,
+    createdAt: transaction.createdAt ?? transaction.date,
     note: transaction.note,
     status: transaction.status ?? 'completed',
     clientId: transaction.clientId ?? transaction.id,
