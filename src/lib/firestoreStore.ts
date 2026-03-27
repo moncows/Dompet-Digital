@@ -30,6 +30,10 @@ type TransactionDocument = Transaction & {
 
 const USER_COLLECTION = 'users';
 
+type UserDocument = {
+  dataUpdatedAt?: Timestamp;
+};
+
 function getUserDocumentRef(userId: string) {
   const firestore = getFirestoreInstance();
   if (!firestore) {
@@ -49,6 +53,16 @@ function getCategoriesCollection(userId: string) {
 
 function getTransactionsCollection(userId: string) {
   return collection(getUserDocumentRef(userId), 'transactions');
+}
+
+async function touchUserDataUpdatedAt(userId: string) {
+  await setDoc(
+    getUserDocumentRef(userId),
+    {
+      dataUpdatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  );
 }
 
 function mapWalletsSnapshot(walletsSnapshot: Awaited<ReturnType<typeof getDocs>>) {
@@ -229,12 +243,48 @@ export function subscribeToRemoteSnapshot(
   };
 }
 
+export function subscribeToRemoteChangeMarker(
+  userId: string,
+  onChange: () => void,
+  onError?: (error: Error) => void,
+) {
+  let lastSeenMarker: string | null = null;
+
+  return onSnapshot(
+    getUserDocumentRef(userId),
+    (snapshot) => {
+      if (!snapshot.exists()) {
+        return;
+      }
+
+      const data = snapshot.data() as UserDocument;
+      const nextMarker = data.dataUpdatedAt?.toMillis?.()?.toString() ?? null;
+
+      if (!nextMarker) {
+        return;
+      }
+
+      if (lastSeenMarker === null) {
+        lastSeenMarker = nextMarker;
+        return;
+      }
+
+      if (nextMarker !== lastSeenMarker) {
+        lastSeenMarker = nextMarker;
+        onChange();
+      }
+    },
+    (error) => onError?.(error),
+  );
+}
+
 export async function seedRemoteSnapshot(userId: string, snapshot: AppSnapshot) {
   await Promise.all([
     replaceCollection(userId, 'wallets', snapshot.wallets),
     replaceCollection(userId, 'categories', snapshot.categories),
     replaceCollection(userId, 'transactions', snapshot.transactions, serializeTransaction),
   ]);
+  await touchUserDataUpdatedAt(userId);
 }
 
 export async function syncReferenceData(userId: string, data: Pick<AppSnapshot, 'wallets' | 'categories'>) {
@@ -242,6 +292,7 @@ export async function syncReferenceData(userId: string, data: Pick<AppSnapshot, 
     replaceCollection(userId, 'wallets', data.wallets),
     replaceCollection(userId, 'categories', data.categories),
   ]);
+  await touchUserDataUpdatedAt(userId);
 }
 
 export async function upsertTransactionDocument(userId: string, transaction: Transaction) {
@@ -249,6 +300,7 @@ export async function upsertTransactionDocument(userId: string, transaction: Tra
     ...serializeTransaction(transaction),
     updatedAt: serverTimestamp(),
   });
+  await touchUserDataUpdatedAt(userId);
 }
 
 export async function deleteTransactionDocument(userId: string, transactionId: string) {

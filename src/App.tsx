@@ -111,7 +111,7 @@ import { useAuth } from './context/AuthContext';
 import { useOnlineStatus } from './hooks/useOnlineStatus';
 import { AppSnapshot, clearAppSnapshot, loadAppSnapshot, saveAppSnapshot } from './lib/appStorage';
 import { isFirebaseConfigured } from './lib/firebase';
-import { ensureUserProfileDocument, loadRemoteSnapshot, seedRemoteSnapshot, subscribeToRemoteSnapshot, syncReferenceData } from './lib/firestoreStore';
+import { ensureUserProfileDocument, loadRemoteSnapshot, seedRemoteSnapshot, subscribeToRemoteChangeMarker, subscribeToRemoteSnapshot, syncReferenceData } from './lib/firestoreStore';
 import {
   clearTransactionMutations,
   createQueueItemId,
@@ -800,6 +800,49 @@ export default function App() {
       },
     );
   }, [userId, isStorageHydrated, isRemoteReady, applyRemoteSnapshot]);
+
+  React.useEffect(() => {
+    if (!userId || !isStorageHydrated || !isRemoteReady || !isOnline || !isFirebaseConfigured()) {
+      return;
+    }
+
+    return subscribeToRemoteChangeMarker(
+      userId,
+      () => {
+        if (pendingSyncCountRef.current > 0 || syncInFlightRef.current) {
+          return;
+        }
+
+        void (async () => {
+          try {
+            const remoteSnapshot = await loadRemoteSnapshot(userId);
+            if (!remoteSnapshot) {
+              return;
+            }
+
+            const normalizedSnapshot = normalizeSnapshot(remoteSnapshot);
+            const hasRemoteChange = serializeSnapshot(normalizedSnapshot) !== serializeSnapshot(currentSnapshotRef.current);
+
+            applyRemoteSnapshot(normalizedSnapshot);
+
+            if (hasRemoteChange) {
+              showTemporarySyncDialog({
+                tone: 'info',
+                title: 'Data Diperbarui',
+                description: 'Perubahan terbaru berhasil dimuat dari akun Anda.',
+                detail: 'Perangkat ini sekarang memakai data yang paling mutakhir.',
+              });
+            }
+          } catch {
+            setSyncNotice('Perubahan terbaru belum dapat dimuat saat ini.');
+          }
+        })();
+      },
+      () => {
+        setSyncNotice('Perubahan terbaru belum dapat dimuat saat ini.');
+      },
+    );
+  }, [userId, isStorageHydrated, isRemoteReady, isOnline, applyRemoteSnapshot, showTemporarySyncDialog]);
 
   React.useEffect(() => {
     if (!isStorageHydrated || !userId) {
