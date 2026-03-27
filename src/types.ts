@@ -2,6 +2,7 @@ export type Wallet = {
   id: string;
   name: string;
   balance: number;
+  balanceMode?: 'base';
   color: string;
   icon: string;
 };

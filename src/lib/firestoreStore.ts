@@ -58,6 +58,7 @@ function mapWalletsSnapshot(walletsSnapshot: Awaited<ReturnType<typeof getDocs>>
       id: documentSnapshot.id,
       name: data.name,
       balance: data.balance,
+      balanceMode: data.balanceMode,
       color: data.color,
       icon: data.icon,
     };

@@ -140,11 +140,64 @@ const normalizeTransactions = (items: Transaction[]) => {
   }));
 };
 
-const normalizeSnapshot = (snapshot: AppSnapshot): AppSnapshot => ({
-  wallets: snapshot.wallets,
-  categories: snapshot.categories,
-  transactions: normalizeTransactions(snapshot.transactions),
-});
+const getWalletTransactionDelta = (walletId: string, transactions: Transaction[]) => {
+  return transactions.reduce((total, transaction) => {
+    if (transaction.status === 'canceled') {
+      return total;
+    }
+
+    if (transaction.type === 'income' && transaction.walletId === walletId) {
+      return total + transaction.amount;
+    }
+
+    if (transaction.type === 'expense' && transaction.walletId === walletId) {
+      return total - transaction.amount;
+    }
+
+    if (transaction.type === 'transfer') {
+      if (transaction.walletId === walletId) {
+        return total - transaction.amount;
+      }
+
+      if (transaction.toWalletId === walletId) {
+        return total + transaction.amount;
+      }
+    }
+
+    return total;
+  }, 0);
+};
+
+const normalizeWallets = (wallets: Wallet[], transactions: Transaction[]) => {
+  return wallets.map((wallet) => {
+    if (wallet.balanceMode === 'base') {
+      return wallet;
+    }
+
+    return {
+      ...wallet,
+      balance: wallet.balance - getWalletTransactionDelta(wallet.id, transactions),
+      balanceMode: 'base' as const,
+    };
+  });
+};
+
+const buildDisplayWallets = (wallets: Wallet[], transactions: Transaction[]) => {
+  return wallets.map((wallet) => ({
+    ...wallet,
+    balance: wallet.balance + getWalletTransactionDelta(wallet.id, transactions),
+  }));
+};
+
+const normalizeSnapshot = (snapshot: AppSnapshot): AppSnapshot => {
+  const normalizedTransactions = normalizeTransactions(snapshot.transactions);
+
+  return {
+    wallets: normalizeWallets(snapshot.wallets, normalizedTransactions),
+    categories: snapshot.categories,
+    transactions: normalizedTransactions,
+  };
+};
 
 // --- MOCK DATA ---
 const DEMO_WALLETS: Wallet[] = [
@@ -175,8 +228,8 @@ const LEGACY_DEMO_APP_SNAPSHOT: AppSnapshot = {
 };
 
 const STARTER_WALLETS: Wallet[] = [
-  { id: 'wallet-bank-abc', name: 'Bank ABC', balance: 0, color: 'bg-blue-600', icon: 'Landmark' },
-  { id: 'wallet-cash', name: 'Uang Tunai', balance: 0, color: 'bg-emerald-500', icon: 'WalletIcon' },
+  { id: 'wallet-bank-abc', name: 'Bank ABC', balance: 0, balanceMode: 'base', color: 'bg-blue-600', icon: 'Landmark' },
+  { id: 'wallet-cash', name: 'Uang Tunai', balance: 0, balanceMode: 'base', color: 'bg-emerald-500', icon: 'WalletIcon' },
 ];
 
 const STARTER_CATEGORIES: Category[] = [
@@ -204,11 +257,15 @@ const DEFAULT_APP_SNAPSHOT: AppSnapshot = {
   transactions: STARTER_APP_SNAPSHOT.transactions,
 };
 
-const serializeSnapshot = (snapshot: AppSnapshot) => JSON.stringify({
-  wallets: snapshot.wallets,
-  categories: snapshot.categories,
-  transactions: normalizeTransactions(snapshot.transactions),
-});
+const serializeSnapshot = (snapshot: AppSnapshot) => {
+  const normalizedSnapshot = normalizeSnapshot(snapshot);
+
+  return JSON.stringify({
+    wallets: normalizedSnapshot.wallets,
+    categories: normalizedSnapshot.categories,
+    transactions: normalizedSnapshot.transactions,
+  });
+};
 
 const isDefaultSnapshot = (snapshot: AppSnapshot) => {
   return serializeSnapshot(snapshot) === serializeSnapshot(DEFAULT_APP_SNAPSHOT);
@@ -619,6 +676,16 @@ export default function App() {
         const normalizedRemoteSnapshot = remoteSnapshot
           ? normalizeSnapshot(remoteSnapshot)
           : null;
+        const needsRemoteWalletMigration = Boolean(
+          remoteSnapshot?.wallets.some((wallet) => wallet.balanceMode !== 'base'),
+        );
+
+        if (needsRemoteWalletMigration && normalizedRemoteSnapshot) {
+          await syncReferenceData(userId, {
+            wallets: normalizedRemoteSnapshot.wallets,
+            categories: normalizedRemoteSnapshot.categories,
+          });
+        }
 
         if (!remoteSnapshot) {
           await seedRemoteSnapshot(userId, localSnapshot);
@@ -791,12 +858,10 @@ export default function App() {
       return;
     }
 
+    referenceSyncInFlightRef.current += 1;
     referenceSyncQueueRef.current = referenceSyncQueueRef.current
       .catch(() => undefined)
-      .then(async () => {
-        referenceSyncInFlightRef.current += 1;
-        await syncReferenceData(userId, { wallets, categories });
-      })
+      .then(() => syncReferenceData(userId, { wallets, categories }))
       .catch(() => {
         setSyncNotice('Perubahan dompet atau kategori belum dapat disimpan saat ini.');
       })
@@ -986,7 +1051,8 @@ export default function App() {
   };
 
   // --- CALCULATIONS ---
-  const totalBalance = useMemo(() => wallets.reduce((acc, w) => acc + w.balance, 0), [wallets]);
+  const displayWallets = useMemo(() => buildDisplayWallets(wallets, transactions), [wallets, transactions]);
+  const totalBalance = useMemo(() => displayWallets.reduce((acc, wallet) => acc + wallet.balance, 0), [displayWallets]);
 
   const currentMonthTransactions = useMemo(() => {
     return transactions.filter(t => t.status !== 'canceled');
@@ -1076,28 +1142,13 @@ export default function App() {
       syncStatus: 'pending'
     };
 
-    setWallets(prev => prev.map(w => {
-      if (transaction.type === 'income' && w.id === transaction.walletId) {
-        return { ...w, balance: w.balance + transaction.amount };
-      }
-      if (transaction.type === 'expense' && w.id === transaction.walletId) {
-        return { ...w, balance: w.balance - transaction.amount };
-      }
-      if (transaction.type === 'transfer') {
-        if (w.id === transaction.walletId) return { ...w, balance: w.balance - transaction.amount };
-        if (w.id === transaction.toWalletId) return { ...w, balance: w.balance + transaction.amount };
-      }
-      return w;
-    }));
-
     setTransactions(prev => [transaction, ...prev]);
     void queueTransactionChange('create', transaction);
     setAddModalOpen(false);
   };
 
   const handleUpdateTransaction = (updatedTx: Transaction) => {
-    const oldTx = transactions.find(t => t.id === updatedTx.id);
-    if (!oldTx) return;
+    if (!transactions.find(t => t.id === updatedTx.id)) return;
 
     const nextTransaction: Transaction = {
       ...updatedTx,
@@ -1105,34 +1156,6 @@ export default function App() {
       syncStatus: 'pending',
       syncError: undefined,
     };
-
-    setWallets(prev => {
-      let nextWallets = [...prev];
-
-      // 1. Reverse old transaction
-      nextWallets = nextWallets.map(w => {
-        if (oldTx.type === 'income' && w.id === oldTx.walletId) return { ...w, balance: w.balance - oldTx.amount };
-        if (oldTx.type === 'expense' && w.id === oldTx.walletId) return { ...w, balance: w.balance + oldTx.amount };
-        if (oldTx.type === 'transfer') {
-          if (w.id === oldTx.walletId) return { ...w, balance: w.balance + oldTx.amount };
-          if (w.id === oldTx.toWalletId) return { ...w, balance: w.balance - oldTx.amount };
-        }
-        return w;
-      });
-
-      // 2. Apply new transaction
-      nextWallets = nextWallets.map(w => {
-        if (nextTransaction.type === 'income' && w.id === nextTransaction.walletId) return { ...w, balance: w.balance + nextTransaction.amount };
-        if (nextTransaction.type === 'expense' && w.id === nextTransaction.walletId) return { ...w, balance: w.balance - nextTransaction.amount };
-        if (nextTransaction.type === 'transfer') {
-          if (w.id === nextTransaction.walletId) return { ...w, balance: w.balance - nextTransaction.amount };
-          if (w.id === nextTransaction.toWalletId) return { ...w, balance: w.balance + nextTransaction.amount };
-        }
-        return w;
-      });
-
-      return nextWallets;
-    });
 
     setTransactions(prev => prev.map(t => t.id === nextTransaction.id ? nextTransaction : t));
     void queueTransactionChange('update', nextTransaction);
@@ -1142,20 +1165,6 @@ export default function App() {
   const handleDeleteTransaction = (id: string) => {
     const tx = transactions.find(t => t.id === id);
     if (!tx || tx.status === 'canceled') return;
-
-    setWallets(prev => prev.map(w => {
-      if (tx.type === 'income' && w.id === tx.walletId) {
-        return { ...w, balance: w.balance - tx.amount };
-      }
-      if (tx.type === 'expense' && w.id === tx.walletId) {
-        return { ...w, balance: w.balance + tx.amount };
-      }
-      if (tx.type === 'transfer') {
-        if (w.id === tx.walletId) return { ...w, balance: w.balance + tx.amount };
-        if (w.id === tx.toWalletId) return { ...w, balance: w.balance - tx.amount };
-      }
-      return w;
-    }));
 
     const canceledTransaction: Transaction = {
       ...tx,
@@ -1172,14 +1181,22 @@ export default function App() {
   const handleAddWallet = (newWallet: Omit<Wallet, 'id'>) => {
     const wallet: Wallet = {
       ...newWallet,
-      id: `w${Date.now()}`
+      id: `w${Date.now()}`,
+      balanceMode: 'base',
     };
     setWallets(prev => [...prev, wallet]);
     setAddWalletModalOpen(false);
   };
 
   const handleUpdateWallet = (updatedWallet: Wallet) => {
-    setWallets(prev => prev.map(w => w.id === updatedWallet.id ? updatedWallet : w));
+    const walletTransactionDelta = getWalletTransactionDelta(updatedWallet.id, transactions);
+    const nextWallet: Wallet = {
+      ...updatedWallet,
+      balance: updatedWallet.balance - walletTransactionDelta,
+      balanceMode: 'base',
+    };
+
+    setWallets(prev => prev.map(wallet => wallet.id === nextWallet.id ? nextWallet : wallet));
     setEditingWallet(null);
   };
 
@@ -1442,7 +1459,7 @@ export default function App() {
         {/* Wallets Horizontal Scroll */}
         <div className="-mt-10 shrink-0 z-10 w-full">
           <div className="flex gap-4 overflow-x-auto px-6 pb-4 snap-x hide-scrollbar">
-            {wallets.map(wallet => (
+            {displayWallets.map(wallet => (
               <div
                 key={wallet.id}
                 onClick={() => setSelectedWalletFilter(wallet.id === selectedWalletFilter ? null : wallet.id)}
@@ -1489,7 +1506,7 @@ export default function App() {
                     const isIncome = tx.type === 'income';
                     const isTransfer = tx.type === 'transfer';
                     const category = categories.find(c => c.id === tx.categoryId);
-                    const wallet = wallets.find(w => w.id === tx.walletId);
+                    const wallet = displayWallets.find(w => w.id === tx.walletId);
 
                     return (
                       <div key={tx.id} className={cn("bg-white dark:bg-gray-900 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex items-center gap-3", tx.status === 'canceled' && "opacity-60")}>
@@ -1521,7 +1538,7 @@ export default function App() {
               <TransactionsView
                 transactions={filteredTransactions}
                 categories={categories}
-                wallets={wallets}
+                wallets={displayWallets}
                 onDelete={handleDeleteTransaction}
                 onEdit={(tx) => setEditingTransaction(tx)}
                 onShowConfirm={confirmAction}
@@ -1529,7 +1546,7 @@ export default function App() {
             </div>
           ) : currentView === 'wallets' ? (
             <WalletsManageView
-              wallets={wallets}
+              wallets={displayWallets}
               onEdit={(w) => setEditingWallet(w)}
               onDelete={handleDeleteWallet}
               onAdd={() => setAddWalletModalOpen(true)}
@@ -1709,7 +1726,7 @@ export default function App() {
                     <div className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Total Saldo</div>
                     <div className="text-3xl font-bold text-gray-900 dark:text-white">{formatRupiah(totalBalance)}</div>
                     <div className="mt-4 flex items-center text-sm text-gray-500 dark:text-gray-400">
-                      <span>Dari {wallets.length} dompet aktif</span>
+                      <span>Dari {displayWallets.length} dompet aktif</span>
                     </div>
                   </div>
                   <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 border border-gray-100 dark:border-gray-800 shadow-sm">
@@ -1752,8 +1769,8 @@ export default function App() {
                           const isIncome = tx.type === 'income';
                           const isTransfer = tx.type === 'transfer';
                           const category = categories.find(c => c.id === tx.categoryId);
-                          const wallet = wallets.find(w => w.id === tx.walletId);
-                          const toWallet = wallets.find(w => w.id === tx.toWalletId);
+                          const wallet = displayWallets.find(w => w.id === tx.walletId);
+                          const toWallet = displayWallets.find(w => w.id === tx.toWalletId);
 
                           return (
                             <div key={tx.id} className={cn("p-5 flex items-center gap-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors", tx.status === 'canceled' && "opacity-60")}>
@@ -1804,7 +1821,7 @@ export default function App() {
                         </div>
                         <span className="font-semibold text-gray-900 dark:text-white">{formatRupiah(totalBalance)}</span>
                       </button>
-                      {wallets.map(wallet => (
+                      {displayWallets.map(wallet => (
                         <button
                           key={wallet.id}
                           onClick={() => setSelectedWalletFilter(wallet.id)}
@@ -1835,14 +1852,14 @@ export default function App() {
               <TransactionsView
                 transactions={filteredTransactions}
                 categories={categories}
-                wallets={wallets}
+                wallets={displayWallets}
                 onDelete={handleDeleteTransaction}
                 onEdit={(tx) => setEditingTransaction(tx)}
                 onShowConfirm={confirmAction}
               />
             ) : currentView === 'wallets' ? (
               <WalletsManageView
-                wallets={wallets}
+                wallets={displayWallets}
                 onEdit={(w) => setEditingWallet(w)}
                 onDelete={handleDeleteWallet}
                 onAdd={() => setAddWalletModalOpen(true)}
@@ -1864,7 +1881,7 @@ export default function App() {
       {/* --- ADD TRANSACTION MODAL --- */}
       {(isAddModalOpen || editingTransaction) && (
         <AddTransactionModal
-          wallets={wallets}
+          wallets={displayWallets}
           categories={categories}
           editingTransaction={editingTransaction}
           onClose={() => {
@@ -2401,8 +2418,8 @@ function TransactionsView({
               const isIncome = tx.type === 'income';
               const isTransfer = tx.type === 'transfer';
               const category = categories.find(c => c.id === tx.categoryId);
-              const wallet = wallets.find(w => w.id === tx.walletId);
-              const toWallet = wallets.find(w => w.id === tx.toWalletId);
+              const wallet = displayWallets.find(w => w.id === tx.walletId);
+              const toWallet = displayWallets.find(w => w.id === tx.toWalletId);
 
               return (
                 <div key={tx.id} className={cn("p-4 sm:p-5 flex items-center gap-3 sm:gap-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group", tx.status === 'canceled' && "opacity-60")}>
