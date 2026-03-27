@@ -479,6 +479,146 @@ function ThemeToggleButton({
   );
 }
 
+function SyncStatusBadge({ syncDialog }: {
+  syncDialog: null | {
+    tone: 'loading' | 'success' | 'info' | 'error';
+    title: string;
+    description: string;
+    detail?: string;
+    canClose: boolean;
+  };
+}) {
+  if (!syncDialog) return null;
+
+  const toneStyles = {
+    loading: 'bg-blue-500/20 border-blue-400/40 text-blue-100',
+    success: 'bg-emerald-500/20 border-emerald-400/40 text-emerald-100',
+    info: 'bg-sky-500/20 border-sky-400/40 text-sky-100',
+    error: 'bg-rose-500/20 border-rose-400/40 text-rose-200',
+  };
+
+  const dotStyles = {
+    loading: 'bg-blue-400',
+    success: 'bg-emerald-400',
+    info: 'bg-sky-400',
+    error: 'bg-rose-400',
+  };
+
+  return (
+    <div
+      title={`${syncDialog.title}: ${syncDialog.description}`}
+      className={cn(
+        'flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold backdrop-blur-sm border transition-all duration-300',
+        toneStyles[syncDialog.tone],
+      )}
+    >
+      {syncDialog.tone === 'loading' ? (
+        <LoaderCircle className="w-3 h-3 animate-spin shrink-0" />
+      ) : (
+        <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', dotStyles[syncDialog.tone])} />
+      )}
+      <span className="sync-badge-marquee-container">
+        <span className="sync-badge-marquee">{syncDialog.title}</span>
+      </span>
+    </div>
+  );
+}
+
+function SyncStatusBadgeDesktop({ syncDialog }: {
+  syncDialog: null | {
+    tone: 'loading' | 'success' | 'info' | 'error';
+    title: string;
+    description: string;
+    detail?: string;
+    canClose: boolean;
+  };
+}) {
+  if (!syncDialog) return null;
+
+  const toneStyles = {
+    loading: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400',
+    success: 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400',
+    info: 'bg-sky-50 dark:bg-sky-900/20 border-sky-200 dark:border-sky-800 text-sky-600 dark:text-sky-400',
+    error: 'bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400',
+  };
+
+  const dotStyles = {
+    loading: 'bg-blue-500 dark:bg-blue-400',
+    success: 'bg-emerald-500 dark:bg-emerald-400',
+    info: 'bg-sky-500 dark:bg-sky-400',
+    error: 'bg-rose-500 dark:bg-rose-400',
+  };
+
+  return (
+    <div
+      title={`${syncDialog.title}: ${syncDialog.description}`}
+      className={cn(
+        'flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border transition-all duration-300',
+        toneStyles[syncDialog.tone],
+      )}
+    >
+      {syncDialog.tone === 'loading' ? (
+        <LoaderCircle className="w-3 h-3 animate-spin shrink-0" />
+      ) : (
+        <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', dotStyles[syncDialog.tone])} />
+      )}
+      <span className="sync-badge-marquee-container">
+        <span className="sync-badge-marquee">{syncDialog.title}</span>
+      </span>
+    </div>
+  );
+}
+
+function ConnectionStatusBadgeDesktop({ status }: { status: string }) {
+  if (!isFirebaseConfigured()) return null;
+
+  const statusStyles = {
+    live: 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400',
+    offline: 'bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400',
+    error: 'bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400',
+    connecting: 'bg-sky-50 dark:bg-sky-900/20 border-sky-200 dark:border-sky-800 text-sky-600 dark:text-sky-400',
+  };
+
+  const dotStyles = {
+    live: 'bg-emerald-500 dark:bg-emerald-400 animate-pulse',
+    offline: 'bg-gray-400 dark:bg-gray-500',
+    error: 'bg-rose-500 dark:bg-rose-400',
+    connecting: 'bg-sky-500 dark:bg-sky-400 animate-pulse',
+  };
+
+  const labels: Record<string, string> = {
+    live: 'Live',
+    offline: 'Offline',
+    error: 'Error',
+    connecting: '...',
+  };
+
+  const titles: Record<string, string> = {
+    live: 'Sinkronisasi real-time aktif',
+    offline: 'Offline – perubahan disimpan lokal',
+    error: 'Gagal terhubung ke server',
+    connecting: 'Menghubungkan...',
+  };
+
+  return (
+    <div
+      title={titles[status] || 'Menghubungkan...'}
+      className={cn(
+        'flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border transition-all duration-300',
+        statusStyles[status as keyof typeof statusStyles] || statusStyles.connecting,
+      )}
+    >
+      <span
+        className={cn(
+          'w-1.5 h-1.5 rounded-full',
+          dotStyles[status as keyof typeof dotStyles] || dotStyles.connecting,
+        )}
+      />
+      {labels[status] || '...'}
+    </div>
+  );
+}
+
 export default function App() {
   const { user, signOutUser } = useAuth();
   const [theme, setTheme] = useState<ThemeMode>(getInitialTheme);
@@ -1460,79 +1600,7 @@ export default function App() {
         </div>
       )}
 
-      {syncDialog && (
-        <div className="fixed inset-0 z-[72] flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-black/35 backdrop-blur-sm"
-            onClick={() => {
-              if (syncDialog.canClose) {
-                closeSyncDialog();
-              }
-            }}
-          />
-          <div className="relative w-full max-w-md overflow-hidden rounded-3xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-2xl">
-            <div className="p-6 sm:p-7">
-              <div className="flex items-start gap-4">
-                <div
-                  className={cn(
-                    'mt-0.5 flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl',
-                    syncDialog.tone === 'loading' && 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
-                    syncDialog.tone === 'success' && 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400',
-                    syncDialog.tone === 'info' && 'bg-sky-100 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400',
-                    syncDialog.tone === 'error' && 'bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400',
-                  )}
-                >
-                  {syncDialog.tone === 'loading' ? (
-                    <LoaderCircle className="h-6 w-6 animate-spin" />
-                  ) : syncDialog.tone === 'success' ? (
-                    <CheckCircle2 className="h-6 w-6" />
-                  ) : syncDialog.tone === 'info' ? (
-                    <RefreshCw className="h-6 w-6" />
-                  ) : (
-                    <AlertCircle className="h-6 w-6" />
-                  )}
-                </div>
-                <div className="min-w-0 flex-1 space-y-2">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <h3 className="text-lg font-bold text-gray-900 dark:text-white">{syncDialog.title}</h3>
-                      <p className="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">
-                        {syncDialog.description}
-                      </p>
-                    </div>
-                    {syncDialog.canClose && (
-                      <button
-                        type="button"
-                        onClick={closeSyncDialog}
-                        className="rounded-xl p-2 text-gray-400 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                        aria-label="Tutup dialog sinkronisasi"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    )}
-                  </div>
-                  {syncDialog.detail && (
-                    <div className="rounded-2xl bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 px-4 py-3 text-sm text-gray-500 dark:text-gray-400 leading-6 whitespace-pre-line">
-                      {syncDialog.detail}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-            {syncDialog.canClose && (
-              <div className="border-t border-gray-100 dark:border-gray-800 px-6 py-4 bg-gray-50 dark:bg-gray-800/80 flex justify-end">
-                <button
-                  type="button"
-                  onClick={closeSyncDialog}
-                  className="inline-flex items-center rounded-xl bg-gray-900 dark:bg-gray-700 px-4 py-2.5 text-sm font-medium text-white hover:bg-gray-800 dark:hover:bg-gray-600 transition-colors"
-                >
-                  Tutup
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      {/* syncDialog is now rendered inline in the header badges */}
 
       {/* ==========================================
           MOBILE VIEW (Native App Style)
@@ -1576,6 +1644,7 @@ export default function App() {
                    realtimeSyncStatus === 'error' ? 'Error' : '...'}
                 </div>
               )}
+              <SyncStatusBadge syncDialog={syncDialog} />
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -1866,6 +1935,12 @@ export default function App() {
               {currentView === 'dashboard' ? 'Dashboard Keuangan' : currentView === 'reports' ? 'Laporan Keuangan' : 'Riwayat Transaksi'}
             </h1>
             <div className="flex items-center gap-3">
+              {isFirebaseConfigured() && (
+                <div className="flex items-center gap-2">
+                  <ConnectionStatusBadgeDesktop status={realtimeSyncStatus} />
+                  <SyncStatusBadgeDesktop syncDialog={syncDialog} />
+                </div>
+              )}
               <ThemeToggleButton
                 theme={theme}
                 onToggle={toggleTheme}

@@ -9,6 +9,7 @@ html,
 body,
 #root {
   height: 100%;
+  overscroll-behavior-y: contain;
 }
 
 body {
@@ -125,5 +126,32 @@ html[data-theme="dark"] .shadow-xl {
   .hide-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
+  }
+}
+
+/* Marquee animation for inline sync badge text */
+@keyframes marquee-scroll {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+.sync-badge-marquee {
+  display: inline-block;
+  white-space: nowrap;
+  animation: marquee-scroll 6s linear infinite;
+}
+
+.sync-badge-marquee-container {
+  overflow: hidden;
+  max-width: 100px;
+}
+
+@media (min-width: 1024px) {
+  .sync-badge-marquee-container {
+    max-width: 140px;
   }
 }
