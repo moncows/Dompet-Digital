@@ -117,11 +117,12 @@ import {
   createQueueItemId,
   enqueueTransactionMutation,
   getPendingTransactionCount,
+  listTransactionMutations,
 } from './lib/offlineQueue';
 import { flushPendingTransactionMutations } from './lib/transactionSync';
 import { cn } from './lib/utils';
 import { ThemeMode, THEME_STORAGE_KEY, applyTheme, getInitialTheme } from './lib/theme';
-import { Wallet, Transaction, Category, TransactionType, TransactionMutationType } from './types';
+import { Wallet, Transaction, Category, TransactionType, TransactionMutationType, TransactionQueueItem } from './types';
 
 const createClientId = () => {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
@@ -219,6 +220,62 @@ const isEmptySnapshot = (snapshot: AppSnapshot) => {
 
 const isLegacyDemoSnapshot = (snapshot: AppSnapshot) => {
   return serializeSnapshot(snapshot) === serializeSnapshot(LEGACY_DEMO_APP_SNAPSHOT);
+};
+
+const formatSnapshotDetail = (snapshot: AppSnapshot, heading = 'Data yang diperiksa:') => {
+  return [
+    heading,
+    `• ${snapshot.wallets.length} dompet`,
+    `• ${snapshot.categories.length} kategori`,
+    `• ${snapshot.transactions.length} transaksi`,
+  ].join('\n');
+};
+
+const formatBootstrapLoadingDetail = () => {
+  return [
+    'Yang sedang diperiksa:',
+    '• Profil akun',
+    '• Dompet',
+    '• Kategori',
+    '• Transaksi',
+    '',
+    'Bagian yang biasanya paling lama adalah pemuatan daftar transaksi dari akun Anda.',
+  ].join('\n');
+};
+
+const formatReferenceSyncDetail = (walletCount: number, categoryCount: number, pendingTransactionCount: number) => {
+  return [
+    'Data yang sedang diselaraskan:',
+    `• ${walletCount} dompet`,
+    `• ${categoryCount} kategori`,
+    `• ${pendingTransactionCount} perubahan transaksi menunggu giliran sinkronisasi`,
+  ].join('\n');
+};
+
+const formatTransactionQueueDetail = (items: TransactionQueueItem[]) => {
+  const createCount = items.filter((item) => item.operation === 'create').length;
+  const updateCount = items.filter((item) => item.operation === 'update').length;
+  const cancelCount = items.filter((item) => item.operation === 'cancel').length;
+
+  const lines = ['Perubahan yang sedang dikirim:'];
+
+  if (createCount > 0) {
+    lines.push(`• ${createCount} transaksi baru`);
+  }
+
+  if (updateCount > 0) {
+    lines.push(`• ${updateCount} perubahan transaksi`);
+  }
+
+  if (cancelCount > 0) {
+    lines.push(`• ${cancelCount} pembatalan transaksi`);
+  }
+
+  if (lines.length === 1) {
+    lines.push('• Tidak ada perubahan yang menunggu sinkronisasi');
+  }
+
+  return lines.join('\n');
 };
 
 // --- HELPER FUNCTIONS ---
@@ -471,16 +528,57 @@ export default function App() {
 
     let isCancelled = false;
     hasBootstrappedRemoteRef.current = true;
+    let loadingDialogDelayTimer: number | null = null;
+    let loadingDialogFallbackTimer: number | null = null;
+
+    const clearBootstrapDialogTimers = () => {
+      if (loadingDialogDelayTimer !== null) {
+        window.clearTimeout(loadingDialogDelayTimer);
+        loadingDialogDelayTimer = null;
+      }
+
+      if (loadingDialogFallbackTimer !== null) {
+        window.clearTimeout(loadingDialogFallbackTimer);
+        loadingDialogFallbackTimer = null;
+      }
+    };
 
     const bootstrapRemoteState = async () => {
       try {
-        openSyncDialog({
-          tone: 'loading',
-          title: 'Menyiapkan Data',
-          description: 'Aplikasi sedang memeriksa dan menyelaraskan data akun Anda.',
-          detail: 'Harap tunggu sebentar hingga proses selesai.',
-          canClose: false,
-        });
+        loadingDialogDelayTimer = window.setTimeout(() => {
+          if (isCancelled) {
+            return;
+          }
+
+          openSyncDialog({
+            tone: 'loading',
+            title: 'Menyiapkan Data',
+            description: 'Aplikasi sedang memeriksa dan menyelaraskan data akun Anda.',
+            detail: formatBootstrapLoadingDetail(),
+            canClose: false,
+          });
+
+          loadingDialogFallbackTimer = window.setTimeout(() => {
+            setSyncDialog((currentDialog) => {
+              if (currentDialog?.tone !== 'loading' || currentDialog.title !== 'Menyiapkan Data') {
+                return currentDialog;
+              }
+
+              return {
+                tone: 'info',
+                title: 'Penyiapan Masih Berjalan',
+                description: 'Penyiapan data membutuhkan waktu lebih lama dari biasanya.',
+                detail: [
+                  formatBootstrapLoadingDetail(),
+                  '',
+                  'Anda tetap bisa memakai aplikasi. Proses sinkronisasi akan dilanjutkan otomatis di latar belakang.',
+                ].join('\n'),
+                canClose: true,
+              };
+            });
+            loadingDialogFallbackTimer = null;
+          }, 4500);
+        }, 600);
 
         await ensureUserProfileDocument(user);
 
@@ -503,7 +601,11 @@ export default function App() {
               tone: 'success',
               title: 'Data Awal Siap',
               description: 'Data awal akun berhasil disiapkan di perangkat ini.',
-              detail: 'Anda sudah bisa mulai menambahkan dompet, kategori, dan transaksi.',
+              detail: [
+                formatSnapshotDetail(localSnapshot, 'Data awal yang disiapkan:'),
+                '',
+                'Anda sudah bisa mulai menambahkan dompet, kategori, dan transaksi.',
+              ].join('\n'),
             }, 3000);
           }
           return;
@@ -520,7 +622,11 @@ export default function App() {
               tone: 'success',
               title: 'Data Awal Diperbarui',
               description: 'Akun ini telah disiapkan dengan data awal yang terbaru.',
-              detail: 'Perangkat sekarang menggunakan data awal yang sama dengan akun Anda.',
+              detail: [
+                formatSnapshotDetail(DEFAULT_APP_SNAPSHOT, 'Data awal yang disamakan:'),
+                '',
+                'Perangkat sekarang menggunakan data awal yang sama dengan akun Anda.',
+              ].join('\n'),
             }, 3000);
           }
           return;
@@ -536,7 +642,11 @@ export default function App() {
               tone: 'success',
               title: 'Data Akun Siap',
               description: 'Data akun berhasil dimuat dan siap digunakan di perangkat ini.',
-              detail: 'Perubahan terbaru dari akun Anda sudah tersedia.',
+              detail: [
+                formatSnapshotDetail(normalizedRemoteSnapshot, 'Data yang berhasil dimuat:'),
+                '',
+                'Jika jumlah transaksi banyak, proses ini memang bisa terasa sedikit lebih lama.',
+              ].join('\n'),
             }, 3000);
           }
           return;
@@ -552,7 +662,11 @@ export default function App() {
             tone: 'info',
             title: 'Pemeriksaan Selesai',
             description: 'Data perangkat berhasil diperiksa dan siap dilanjutkan.',
-            detail: 'Perubahan yang tertunda akan disinkronkan bertahap sesuai kondisi koneksi.',
+            detail: [
+              formatReferenceSyncDetail(localSnapshot.wallets.length, localSnapshot.categories.length, pendingCount),
+              '',
+              'Perubahan yang tertunda akan disinkronkan bertahap sesuai kondisi koneksi.',
+            ].join('\n'),
           });
         }
       } catch {
@@ -567,6 +681,8 @@ export default function App() {
           });
         }
       } finally {
+        clearBootstrapDialogTimers();
+
         if (!isCancelled) {
           setIsRemoteReady(true);
         }
@@ -577,6 +693,7 @@ export default function App() {
 
     return () => {
       isCancelled = true;
+      clearBootstrapDialogTimers();
     };
   }, [user, userId, isStorageHydrated, isOnline, wallets, categories, transactions, applyRemoteSnapshot]);
 
@@ -720,16 +837,23 @@ export default function App() {
     }
 
     syncInFlightRef.current = true;
-    setSyncNotice('Menyinkronkan perubahan lokal...');
-    openSyncDialog({
-      tone: 'loading',
-      title: 'Menyinkronkan Data',
-      description: 'Perubahan lokal sedang dikirim dan diverifikasi.',
-      detail: pendingSyncCount > 0 ? `${pendingSyncCount} perubahan sedang diproses.` : 'Harap tunggu sebentar.',
-      canClose: false,
-    });
 
     try {
+      const pendingMutations = await listTransactionMutations(userId);
+
+      setSyncNotice('Menyinkronkan perubahan lokal...');
+      openSyncDialog({
+        tone: 'loading',
+        title: 'Menyinkronkan Data',
+        description: 'Perubahan lokal sedang dikirim dan diverifikasi.',
+        detail: pendingMutations.length > 0
+          ? formatTransactionQueueDetail(pendingMutations)
+          : pendingSyncCount > 0
+            ? `${pendingSyncCount} perubahan sedang diproses.`
+            : 'Harap tunggu sebentar.',
+        canClose: false,
+      });
+
       const result = await flushPendingTransactionMutations({
         userId,
         onSuccess: (item) => {
@@ -1186,7 +1310,7 @@ export default function App() {
                     )}
                   </div>
                   {syncDialog.detail && (
-                    <div className="rounded-2xl bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 px-4 py-3 text-sm text-gray-500 dark:text-gray-400 leading-6">
+                    <div className="rounded-2xl bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 px-4 py-3 text-sm text-gray-500 dark:text-gray-400 leading-6 whitespace-pre-line">
                       {syncDialog.detail}
                     </div>
                   )}
