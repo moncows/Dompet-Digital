@@ -2,8 +2,6 @@ import React from 'react';
 import { AppSnapshot } from '../lib/appStorage';
 import { isFirebaseConfigured } from '../lib/firebase';
 import {
-  enableFirestoreNetwork,
-  disableFirestoreNetwork,
   subscribeToRemoteSnapshot,
 } from '../lib/firestoreStore';
 
@@ -12,15 +10,17 @@ export type SyncStatus = 'connecting' | 'live' | 'offline' | 'error';
 type UseRealtimeSyncOptions = {
   userId: string;
   isOnline: boolean;
-  isReady: boolean; // true after bootstrap is done
+  isReady: boolean;
   onSnapshot: (snapshot: AppSnapshot) => void;
   onError?: (error: Error) => void;
 };
 
 /**
  * Manages a single Firestore onSnapshot listener that provides real-time
- * multi-device sync. Handles online/offline transitions by explicitly
- * enabling/disabling the Firestore network connection.
+ * multi-device sync. Firestore SDK handles online/offline automatically
+ * — no need for manual enableNetwork/disableNetwork calls.
+ *
+ * Uses refs to avoid stale closures in the snapshot callback.
  */
 export function useRealtimeSync({
   userId,
@@ -31,20 +31,17 @@ export function useRealtimeSync({
 }: UseRealtimeSyncOptions): SyncStatus {
   const [syncStatus, setSyncStatus] = React.useState<SyncStatus>('connecting');
 
-  // Re-enable/disable Firestore SDK network layer when connectivity changes.
-  React.useEffect(() => {
-    if (!isFirebaseConfigured()) return;
+  // Store callbacks in refs so the onSnapshot listener always calls the latest version
+  const handleSnapshotRef = React.useRef(handleSnapshot);
+  const onErrorRef = React.useRef(onError);
+  React.useEffect(() => { handleSnapshotRef.current = handleSnapshot; }, [handleSnapshot]);
+  React.useEffect(() => { onErrorRef.current = onError; }, [onError]);
 
-    if (isOnline) {
-      void enableFirestoreNetwork().then(() => {
-        setSyncStatus((prev) => (prev === 'offline' ? 'connecting' : prev));
-      });
-    } else {
-      void disableFirestoreNetwork().then(() => {
-        setSyncStatus('offline');
-      });
-    }
-  }, [isOnline]);
+  // Track online/offline status for the badge — Firestore handles reconnect internally.
+  React.useEffect(() => {
+    if (!isReady) return;
+    setSyncStatus(isOnline ? 'live' : 'offline');
+  }, [isOnline, isReady]);
 
   // Subscribe to real-time Firestore snapshots.
   React.useEffect(() => {
@@ -59,21 +56,17 @@ export function useRealtimeSync({
       (remoteSnapshot) => {
         if (!remoteSnapshot) return;
         setSyncStatus('live');
-        handleSnapshot(remoteSnapshot);
+        handleSnapshotRef.current(remoteSnapshot);
       },
       (error) => {
         setSyncStatus('error');
-        onError?.(error);
+        onErrorRef.current?.(error);
       },
     );
-
-    // Mark as live immediately (Firestore will call the callback from cache first)
-    setSyncStatus(isOnline ? 'live' : 'offline');
 
     return () => {
       unsubscribe();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, isReady]);
 
   return syncStatus;
