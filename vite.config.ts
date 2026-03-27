@@ -10,7 +10,7 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'apple-touch-icon.svg'],
+      includeAssets: ['favicon.svg', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png'],
       manifest: {
         id: '/',
         name: 'DompetKu Cash Flow',
@@ -26,21 +26,27 @@ export default defineConfig({
         categories: ['finance', 'productivity', 'business'],
         icons: [
           {
-            src: '/pwa-192x192.svg',
+            src: '/pwa-192x192.png',
             sizes: '192x192',
-            type: 'image/svg+xml',
+            type: 'image/png',
             purpose: 'any',
           },
           {
-            src: '/pwa-512x512.svg',
+            src: '/pwa-512x512.png',
             sizes: '512x512',
-            type: 'image/svg+xml',
-            purpose: 'any maskable',
+            type: 'image/png',
+            purpose: 'any',
           },
           {
-            src: '/apple-touch-icon.svg',
+            src: '/pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
+          {
+            src: '/apple-touch-icon.png',
             sizes: '180x180',
-            type: 'image/svg+xml',
+            type: 'image/png',
             purpose: 'any',
           },
         ],

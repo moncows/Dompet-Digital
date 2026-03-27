@@ -90,7 +90,8 @@ import {
   AlertCircle,
   CheckCircle2,
   LoaderCircle,
-  RefreshCw
+  RefreshCw,
+  Download
 } from 'lucide-react';
 import {
   BarChart as ReBarChart,
@@ -108,6 +109,7 @@ import {
 import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { useAuth } from './context/AuthContext';
+import { useInstallPrompt } from './hooks/useInstallPrompt';
 import { useOnlineStatus } from './hooks/useOnlineStatus';
 import { useRealtimeSync } from './hooks/useRealtimeSync';
 import { AppSnapshot, clearAppSnapshot, loadAppSnapshot, saveAppSnapshot } from './lib/appStorage';
@@ -481,6 +483,7 @@ export default function App() {
   const { user, signOutUser } = useAuth();
   const [theme, setTheme] = useState<ThemeMode>(getInitialTheme);
   const isOnline = useOnlineStatus();
+  const { canInstall, promptInstall } = useInstallPrompt();
   const syncInFlightRef = React.useRef(false);
   const syncDialogTimeoutRef = React.useRef<number | null>(null);
   const storageSaveQueueRef = React.useRef(Promise.resolve());
@@ -1384,6 +1387,9 @@ export default function App() {
     setDismissedSyncBannerKey(null);
   }, [isOnline, pendingSyncCount, syncNotice]);
 
+  const [installBannerDismissed, setInstallBannerDismissed] = useState(false);
+  const showInstallBanner = canInstall && !installBannerDismissed;
+
   if (!isStorageHydrated) {
     return (
       <div className="h-screen w-full bg-gray-50 dark:bg-slate-950 text-gray-900 dark:text-slate-100 font-sans flex items-center justify-center px-6">
@@ -1416,6 +1422,39 @@ export default function App() {
             >
               <X className="w-4 h-4" />
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* PWA Install Banner */}
+      {showInstallBanner && (
+        <div className="fixed bottom-20 left-1/2 z-[70] w-[calc(100%-2rem)] max-w-md -translate-x-1/2">
+          <div className="rounded-2xl bg-gradient-to-r from-blue-600 to-blue-700 p-4 shadow-2xl shadow-blue-600/30 border border-blue-500/30">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center shrink-0">
+                <Download className="w-5 h-5 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-white">Install DompetKu</p>
+                <p className="text-xs text-blue-100 mt-0.5">Akses cepat dari home screen, bekerja offline.</p>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setInstallBannerDismissed(true)}
+                  className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+                >
+                  Nanti
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void promptInstall()}
+                  className="rounded-xl bg-white px-3.5 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-50 transition-colors shadow-sm"
+                >
+                  Install
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
