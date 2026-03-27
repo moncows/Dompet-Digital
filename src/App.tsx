@@ -527,8 +527,7 @@ export default function App() {
 
       if (
         pendingSyncCountRef.current > 0 ||
-        syncInFlightRef.current ||
-        referenceSyncInFlightRef.current > 0
+        syncInFlightRef.current
       ) {
         latestRemoteSnapshotRef.current = normalizeSnapshot(remoteSnapshot);
         return;
@@ -807,7 +806,7 @@ export default function App() {
         latestRemoteSnapshotRef.current = normalizedSnapshot;
         const hasRemoteChange = serializeSnapshot(normalizedSnapshot) !== serializeSnapshot(currentSnapshotRef.current);
 
-        if (pendingSyncCountRef.current > 0 || syncInFlightRef.current || referenceSyncInFlightRef.current > 0) {
+        if (pendingSyncCountRef.current > 0 || syncInFlightRef.current) {
           return;
         }
 
@@ -836,8 +835,7 @@ export default function App() {
     const syncLatestSnapshot = () => {
       if (
         pendingSyncCountRef.current > 0 ||
-        syncInFlightRef.current ||
-        referenceSyncInFlightRef.current > 0
+        syncInFlightRef.current
       ) {
         return;
       }
@@ -920,11 +918,7 @@ export default function App() {
   React.useEffect(() => {
     pendingSyncCountRef.current = pendingSyncCount;
 
-    if (
-      pendingSyncCount === 0 &&
-      !syncInFlightRef.current &&
-      referenceSyncInFlightRef.current === 0
-    ) {
+    if (pendingSyncCount === 0 && !syncInFlightRef.current) {
       void refreshRemoteSnapshotFromCloud();
     }
   }, [pendingSyncCount, refreshRemoteSnapshotFromCloud]);
@@ -2457,8 +2451,8 @@ function TransactionsView({
               const isIncome = tx.type === 'income';
               const isTransfer = tx.type === 'transfer';
               const category = categories.find(c => c.id === tx.categoryId);
-              const wallet = displayWallets.find(w => w.id === tx.walletId);
-              const toWallet = displayWallets.find(w => w.id === tx.toWalletId);
+              const wallet = wallets.find(w => w.id === tx.walletId);
+              const toWallet = wallets.find(w => w.id === tx.toWalletId);
 
               return (
                 <div key={tx.id} className={cn("p-4 sm:p-5 flex items-center gap-3 sm:gap-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group", tx.status === 'canceled' && "opacity-60")}>
