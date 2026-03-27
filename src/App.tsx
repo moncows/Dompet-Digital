@@ -884,11 +884,7 @@ export default function App() {
 
   React.useEffect(() => {
     pendingSyncCountRef.current = pendingSyncCount;
-
-    if (pendingSyncCount === 0 && latestRemoteSnapshotRef.current && !syncInFlightRef.current) {
-      applyRemoteSnapshot(latestRemoteSnapshotRef.current);
-    }
-  }, [pendingSyncCount, applyRemoteSnapshot]);
+  }, [pendingSyncCount]);
 
   React.useEffect(() => {
     localStorage.setItem(THEME_STORAGE_KEY, theme);
