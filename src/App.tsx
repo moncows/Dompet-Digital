@@ -912,7 +912,8 @@ export default function App() {
       isCancelled = true;
       clearBootstrapDialogTimers();
     };
-  }, [user, userId, isStorageHydrated, isOnline, wallets, categories, transactions, applyRemoteSnapshot]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, userId, isStorageHydrated, isOnline, applyRemoteSnapshot]);
 
   // Real-time multi-device sync via Firestore onSnapshot
   const realtimeSyncStatus = useRealtimeSync({
