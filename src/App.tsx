@@ -623,7 +623,7 @@ export default function App() {
   const { user, signOutUser } = useAuth();
   const [theme, setTheme] = useState<ThemeMode>(getInitialTheme);
   const isOnline = useOnlineStatus();
-  const { canInstall, promptInstall } = useInstallPrompt();
+  const { canInstall, canInstallNative, canShowIOSGuide, promptInstall, dismissInstall } = useInstallPrompt();
   const syncInFlightRef = React.useRef(false);
   const syncDialogTimeoutRef = React.useRef<number | null>(null);
   const storageSaveQueueRef = React.useRef(Promise.resolve());
@@ -714,7 +714,7 @@ export default function App() {
     title: string;
     description: string;
     detail?: string;
-  }, durationMs = 2600) => {
+  }, durationMs = 1000) => {
     clearSyncDialogTimeout();
     setSyncDialog({
       ...nextDialog,
@@ -1550,18 +1550,18 @@ export default function App() {
   return (
     <div className="h-screen w-full bg-gray-50 dark:bg-slate-950 overflow-hidden font-sans text-gray-900 dark:text-slate-100">
       {visibleSyncBanner && (
-        <div className="fixed left-1/2 top-4 z-[80] w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 px-4">
-          <div className={cn('rounded-2xl px-4 py-3 text-sm font-medium shadow-lg backdrop-blur-sm flex items-start gap-3', visibleSyncBanner.className)}>
-            <div className="flex-1 pr-1">
-              {visibleSyncBanner.text}
-            </div>
+        <div className="fixed left-1/2 top-2 z-[80] w-auto max-w-[280px] -translate-x-1/2">
+          <div className={cn('rounded-full px-3 py-1.5 text-xs font-medium shadow-lg backdrop-blur-sm flex items-center gap-2', visibleSyncBanner.className)}>
+            <span className="sync-badge-marquee-container">
+              <span className="sync-badge-marquee">{visibleSyncBanner.text}</span>
+            </span>
             <button
               type="button"
               onClick={() => setDismissedSyncBannerKey(visibleSyncBanner.key)}
               aria-label="Tutup notifikasi sinkronisasi"
-              className="shrink-0 rounded-lg p-1 text-white/90 hover:text-white hover:bg-white/10 transition-colors"
+              className="shrink-0 rounded-full p-0.5 text-white/80 hover:text-white hover:bg-white/10 transition-colors"
             >
-              <X className="w-4 h-4" />
+              <X className="w-3 h-3" />
             </button>
           </div>
         </div>
@@ -1577,23 +1577,34 @@ export default function App() {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-bold text-white">Install DompetKu</p>
-                <p className="text-xs text-blue-100 mt-0.5">Akses cepat dari home screen, bekerja offline.</p>
+                {canShowIOSGuide ? (
+                  <p className="text-xs text-blue-100 mt-0.5">
+                    Ketuk <span className="inline-flex items-center align-middle mx-0.5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></span> lalu <strong>"Tambahkan ke Layar Utama"</strong>
+                  </p>
+                ) : (
+                  <p className="text-xs text-blue-100 mt-0.5">Akses cepat dari home screen, bekerja offline.</p>
+                )}
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
                 <button
                   type="button"
-                  onClick={() => setInstallBannerDismissed(true)}
+                  onClick={() => {
+                    setInstallBannerDismissed(true);
+                    dismissInstall();
+                  }}
                   className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-white/70 hover:text-white hover:bg-white/10 transition-colors"
                 >
                   Nanti
                 </button>
-                <button
-                  type="button"
-                  onClick={() => void promptInstall()}
-                  className="rounded-xl bg-white px-3.5 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-50 transition-colors shadow-sm"
-                >
-                  Install
-                </button>
+                {canInstallNative && (
+                  <button
+                    type="button"
+                    onClick={() => void promptInstall()}
+                    className="rounded-xl bg-white px-3.5 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-50 transition-colors shadow-sm"
+                  >
+                    Install
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -2182,22 +2193,26 @@ export default function App() {
         />
       )}
 
-      {/* Confirm Dialog */}
+      {/* Confirm Dialog — Compact Top Toast */}
       {confirmDialog.isOpen && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))} />
-          <div className="relative bg-white dark:bg-gray-900 rounded-2xl shadow-xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="p-6 text-center">
-              <div className={cn("w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4", confirmDialog.isDestructive ? "bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400" : "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400")}>
-                <AlertCircle className="w-6 h-6" />
+        <div className="fixed inset-0 z-[70] flex items-start justify-center pt-6 px-4">
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))} />
+          <div className="relative bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in slide-in-from-top-4 zoom-in-95 duration-200 border border-gray-100 dark:border-gray-800">
+            <div className="px-4 py-3.5">
+              <div className="flex items-center gap-3">
+                <div className={cn("w-9 h-9 rounded-full flex items-center justify-center shrink-0", confirmDialog.isDestructive ? "bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400" : "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400")}>
+                  <AlertCircle className="w-4.5 h-4.5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-bold text-gray-900 dark:text-white">{confirmDialog.title}</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">{confirmDialog.message}</p>
+                </div>
               </div>
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">{confirmDialog.title}</h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400">{confirmDialog.message}</p>
             </div>
-            <div className="p-4 bg-gray-50 dark:bg-gray-800 flex gap-3">
+            <div className="px-4 pb-3.5 flex gap-2 justify-end">
               <button
                 onClick={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
-                className="flex-1 px-4 py-2.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 font-medium rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                className="px-3.5 py-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 text-xs font-medium rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
               >
                 Batal
               </button>
@@ -2207,7 +2222,7 @@ export default function App() {
                   setConfirmDialog(prev => ({ ...prev, isOpen: false }));
                 }}
                 className={cn(
-                  "flex-1 px-4 py-2.5 text-white font-medium rounded-xl transition-colors",
+                  "px-3.5 py-1.5 text-white text-xs font-medium rounded-xl transition-colors",
                   confirmDialog.isDestructive ? "bg-rose-600 hover:bg-rose-700" : "bg-blue-600 hover:bg-blue-700"
                 )}
               >
