@@ -3,6 +3,32 @@ import { Cloud, LoaderCircle, Lock, Mail, UserRound } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { cn } from '../lib/utils';
 
+function getAuthErrorMessage(error: unknown): string {
+  if (!(error instanceof Error)) {
+    return 'Terjadi kesalahan. Silakan coba lagi.';
+  }
+
+  const msg = error.message.toLowerCase();
+
+  // Registration errors
+  if (msg.includes('email-already-in-use')) return 'Email ini sudah terdaftar. Silakan gunakan email lain atau langsung masuk.';
+  if (msg.includes('weak-password')) return 'Password terlalu lemah. Gunakan minimal 6 karakter.';
+  if (msg.includes('invalid-email')) return 'Format email tidak valid. Periksa kembali alamat email Anda.';
+
+  // Login errors
+  if (msg.includes('user-not-found') || msg.includes('invalid-credential')) return 'Email atau password salah. Periksa kembali dan coba lagi.';
+  if (msg.includes('wrong-password')) return 'Password salah. Silakan coba lagi.';
+  if (msg.includes('user-disabled')) return 'Akun ini telah dinonaktifkan. Hubungi administrator.';
+  if (msg.includes('too-many-requests')) return 'Terlalu banyak percobaan. Tunggu beberapa menit lalu coba lagi.';
+
+  // Network / general errors
+  if (msg.includes('network-request-failed')) return 'Koneksi internet bermasalah. Periksa jaringan Anda.';
+  if (msg.includes('operation-not-allowed')) return 'Metode login ini belum diaktifkan. Hubungi administrator.';
+  if (msg.includes('popup-closed-by-user')) return 'Proses login dibatalkan.';
+  if (msg.includes('popup-blocked')) return 'Pop-up diblokir oleh browser. Izinkan pop-up lalu coba lagi.';
+
+  return error.message || 'Autentikasi gagal. Silakan coba lagi.';
+}
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const { user, isAuthLoading, isFirebaseReady, signIn, signInWithGoogle, signUp } = useAuth();
   const [mode, setMode] = React.useState<'signin' | 'signup'>('signin');
@@ -25,7 +51,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
         await signIn(email, password);
       }
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Autentikasi gagal. Coba lagi.');
+      setErrorMessage(getAuthErrorMessage(error));
     } finally {
       setIsSubmitting(false);
     }
@@ -38,7 +64,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     try {
       await signInWithGoogle();
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Login Google gagal. Coba lagi.');
+      setErrorMessage(getAuthErrorMessage(error));
     } finally {
       setIsGoogleSubmitting(false);
     }

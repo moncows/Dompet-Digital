@@ -3,7 +3,9 @@ import {
   Timestamp,
   collection,
   deleteDoc,
+  disableNetwork,
   doc,
+  enableNetwork,
   getDocs,
   onSnapshot,
   orderBy,
@@ -306,4 +308,24 @@ export async function upsertTransactionDocument(userId: string, transaction: Tra
 
 export async function deleteTransactionDocument(userId: string, transactionId: string) {
   await deleteDoc(doc(getTransactionsCollection(userId), transactionId));
+}
+
+export async function enableFirestoreNetwork() {
+  const firestore = getFirestoreInstance();
+  if (!firestore) return;
+  try {
+    await enableNetwork(firestore);
+  } catch {
+    // ignore - already enabled or not connected
+  }
+}
+
+export async function disableFirestoreNetwork() {
+  const firestore = getFirestoreInstance();
+  if (!firestore) return;
+  try {
+    await disableNetwork(firestore);
+  } catch {
+    // ignore - already disabled
+  }
 }

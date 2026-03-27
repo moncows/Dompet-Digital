@@ -109,9 +109,10 @@ import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameDa
 import { id } from 'date-fns/locale';
 import { useAuth } from './context/AuthContext';
 import { useOnlineStatus } from './hooks/useOnlineStatus';
+import { useRealtimeSync } from './hooks/useRealtimeSync';
 import { AppSnapshot, clearAppSnapshot, loadAppSnapshot, saveAppSnapshot } from './lib/appStorage';
 import { isFirebaseConfigured } from './lib/firebase';
-import { ensureUserProfileDocument, loadRemoteSnapshot, seedRemoteSnapshot, subscribeToRemoteChangeMarker, subscribeToRemoteSnapshot, syncReferenceData } from './lib/firestoreStore';
+import { ensureUserProfileDocument, loadRemoteSnapshot, seedRemoteSnapshot, syncReferenceData } from './lib/firestoreStore';
 import {
   clearTransactionMutations,
   createQueueItemId,
@@ -910,65 +911,27 @@ export default function App() {
     };
   }, [user, userId, isStorageHydrated, isOnline, wallets, categories, transactions, applyRemoteSnapshot]);
 
-  React.useEffect(() => {
-    if (!userId || !isStorageHydrated || !isRemoteReady || !isFirebaseConfigured()) {
-      return;
-    }
+  // Real-time multi-device sync via Firestore onSnapshot
+  const realtimeSyncStatus = useRealtimeSync({
+    userId,
+    isOnline,
+    isReady: isRemoteReady,
+    onSnapshot: (remoteSnapshot) => {
+      const normalizedSnapshot = normalizeSnapshot(remoteSnapshot);
+      latestRemoteSnapshotRef.current = normalizedSnapshot;
 
-    return subscribeToRemoteSnapshot(
-      userId,
-      (remoteSnapshot) => {
-        if (!remoteSnapshot) {
-          return;
-        }
+      if (pendingSyncCountRef.current > 0 || syncInFlightRef.current) {
+        deferredRemoteSnapshotRef.current = normalizedSnapshot;
+        return;
+      }
 
-        const normalizedSnapshot = normalizeSnapshot(remoteSnapshot);
-        latestRemoteSnapshotRef.current = normalizedSnapshot;
+      applyRemoteSnapshotWithFeedback(normalizedSnapshot);
+    },
+    onError: () => {
+      setSyncNotice('Perubahan terbaru belum dapat dimuat saat ini.');
+    },
+  });
 
-        if (pendingSyncCountRef.current > 0 || syncInFlightRef.current) {
-          deferredRemoteSnapshotRef.current = normalizedSnapshot;
-          return;
-        }
-
-        applyRemoteSnapshotWithFeedback(normalizedSnapshot);
-      },
-      () => {
-        setSyncNotice('Perubahan terbaru belum dapat dimuat saat ini.');
-      },
-    );
-  }, [userId, isStorageHydrated, isRemoteReady, applyRemoteSnapshotWithFeedback]);
-
-  React.useEffect(() => {
-    if (!userId || !isStorageHydrated || !isRemoteReady || !isOnline || !isFirebaseConfigured()) {
-      return;
-    }
-
-    return subscribeToRemoteChangeMarker(
-      userId,
-      () => {
-        if (pendingSyncCountRef.current > 0 || syncInFlightRef.current) {
-          shouldReloadRemoteSnapshotRef.current = true;
-          return;
-        }
-
-        void (async () => {
-          try {
-            const remoteSnapshot = await loadRemoteSnapshot(userId);
-            if (!remoteSnapshot) {
-              return;
-            }
-
-            applyRemoteSnapshotWithFeedback(remoteSnapshot);
-          } catch {
-            setSyncNotice('Perubahan terbaru belum dapat dimuat saat ini.');
-          }
-        })();
-      },
-      () => {
-        setSyncNotice('Perubahan terbaru belum dapat dimuat saat ini.');
-      },
-    );
-  }, [userId, isStorageHydrated, isRemoteReady, isOnline, applyRemoteSnapshotWithFeedback]);
 
   React.useEffect(() => {
     if (!isStorageHydrated || !userId) {
@@ -1538,8 +1501,41 @@ export default function App() {
         {/* Header (Curved) */}
         <div className="bg-blue-600 pt-12 pb-16 px-6 rounded-b-[2.5rem] shrink-0 shadow-md">
           <div className="flex justify-between items-center mb-6">
-            <div className="w-10 h-10 rounded-full bg-white/20 dark:bg-gray-900/20 flex items-center justify-center text-white font-bold border border-white/30 backdrop-blur-sm">
-              {userInitial}
+            <div className="flex items-center gap-2">
+              <div className="w-10 h-10 rounded-full bg-white/20 dark:bg-gray-900/20 flex items-center justify-center text-white font-bold border border-white/30 backdrop-blur-sm">
+                {userInitial}
+              </div>
+              {/* Live Sync Badge */}
+              {isFirebaseConfigured() && (
+                <div
+                  title={
+                    realtimeSyncStatus === 'live' ? 'Sinkronisasi real-time aktif' :
+                    realtimeSyncStatus === 'offline' ? 'Offline – perubahan disimpan lokal' :
+                    realtimeSyncStatus === 'error' ? 'Gagal terhubung ke server' :
+                    'Menghubungkan...'
+                  }
+                  className={cn(
+                    'flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold backdrop-blur-sm border transition-all duration-300',
+                    realtimeSyncStatus === 'live' && 'bg-emerald-500/20 border-emerald-400/40 text-emerald-100',
+                    realtimeSyncStatus === 'offline' && 'bg-white/10 border-white/20 text-white/60',
+                    realtimeSyncStatus === 'error' && 'bg-rose-500/20 border-rose-400/40 text-rose-200',
+                    realtimeSyncStatus === 'connecting' && 'bg-sky-500/20 border-sky-400/40 text-sky-100',
+                  )}
+                >
+                  <span
+                    className={cn(
+                      'w-1.5 h-1.5 rounded-full',
+                      realtimeSyncStatus === 'live' && 'bg-emerald-400 animate-pulse',
+                      realtimeSyncStatus === 'offline' && 'bg-white/40',
+                      realtimeSyncStatus === 'error' && 'bg-rose-400',
+                      realtimeSyncStatus === 'connecting' && 'bg-sky-400 animate-pulse',
+                    )}
+                  />
+                  {realtimeSyncStatus === 'live' ? 'Live' :
+                   realtimeSyncStatus === 'offline' ? 'Offline' :
+                   realtimeSyncStatus === 'error' ? 'Error' : '...'}
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-2">
               <button
