@@ -829,6 +829,45 @@ export default function App() {
   }, [userId, isStorageHydrated, isRemoteReady, applyRemoteSnapshot]);
 
   React.useEffect(() => {
+    if (!userId || !isStorageHydrated || !isRemoteReady || !isOnline || !isFirebaseConfigured()) {
+      return;
+    }
+
+    const syncLatestSnapshot = () => {
+      if (
+        pendingSyncCountRef.current > 0 ||
+        syncInFlightRef.current ||
+        referenceSyncInFlightRef.current > 0
+      ) {
+        return;
+      }
+
+      void refreshRemoteSnapshotFromCloud();
+    };
+
+    const intervalId = window.setInterval(syncLatestSnapshot, 4000);
+
+    const handleFocus = () => {
+      syncLatestSnapshot();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        syncLatestSnapshot();
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [userId, isStorageHydrated, isRemoteReady, isOnline, refreshRemoteSnapshotFromCloud]);
+
+  React.useEffect(() => {
     if (!isStorageHydrated || !userId) {
       return;
     }
