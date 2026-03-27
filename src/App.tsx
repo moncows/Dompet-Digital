@@ -389,7 +389,6 @@ export default function App() {
   const syncDialogTimeoutRef = React.useRef<number | null>(null);
   const storageSaveQueueRef = React.useRef(Promise.resolve());
   const referenceSyncQueueRef = React.useRef(Promise.resolve());
-  const referenceSyncInFlightRef = React.useRef(0);
   const hasBootstrappedRemoteRef = React.useRef(false);
   const currentSnapshotRef = React.useRef<AppSnapshot>(DEFAULT_APP_SNAPSHOT);
   const latestRemoteSnapshotRef = React.useRef<AppSnapshot | null>(null);
@@ -513,31 +512,6 @@ export default function App() {
     setCategories(normalizedSnapshot.categories);
     setTransactions(normalizedSnapshot.transactions);
   }, []);
-
-  const refreshRemoteSnapshotFromCloud = React.useCallback(async () => {
-    if (!userId || !isOnline || !isFirebaseConfigured()) {
-      return;
-    }
-
-    try {
-      const remoteSnapshot = await loadRemoteSnapshot(userId);
-      if (!remoteSnapshot) {
-        return;
-      }
-
-      if (
-        pendingSyncCountRef.current > 0 ||
-        syncInFlightRef.current
-      ) {
-        latestRemoteSnapshotRef.current = normalizeSnapshot(remoteSnapshot);
-        return;
-      }
-
-      applyRemoteSnapshot(remoteSnapshot);
-    } catch {
-      setSyncNotice('Perubahan terbaru belum dapat dimuat saat ini.');
-    }
-  }, [userId, isOnline, applyRemoteSnapshot]);
 
   React.useEffect(() => {
     return () => {
@@ -828,44 +802,6 @@ export default function App() {
   }, [userId, isStorageHydrated, isRemoteReady, applyRemoteSnapshot]);
 
   React.useEffect(() => {
-    if (!userId || !isStorageHydrated || !isRemoteReady || !isOnline || !isFirebaseConfigured()) {
-      return;
-    }
-
-    const syncLatestSnapshot = () => {
-      if (
-        pendingSyncCountRef.current > 0 ||
-        syncInFlightRef.current
-      ) {
-        return;
-      }
-
-      void refreshRemoteSnapshotFromCloud();
-    };
-
-    const intervalId = window.setInterval(syncLatestSnapshot, 4000);
-
-    const handleFocus = () => {
-      syncLatestSnapshot();
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        syncLatestSnapshot();
-      }
-    };
-
-    window.addEventListener('focus', handleFocus);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      window.clearInterval(intervalId);
-      window.removeEventListener('focus', handleFocus);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [userId, isStorageHydrated, isRemoteReady, isOnline, refreshRemoteSnapshotFromCloud]);
-
-  React.useEffect(() => {
     if (!isStorageHydrated || !userId) {
       return;
     }
@@ -895,33 +831,21 @@ export default function App() {
       return;
     }
 
-    referenceSyncInFlightRef.current += 1;
     referenceSyncQueueRef.current = referenceSyncQueueRef.current
       .catch(() => undefined)
       .then(() => syncReferenceData(userId, { wallets, categories }))
       .catch(() => {
         setSyncNotice('Perubahan dompet atau kategori belum dapat disimpan saat ini.');
-      })
-      .finally(() => {
-        referenceSyncInFlightRef.current = Math.max(0, referenceSyncInFlightRef.current - 1);
-
-        if (
-          referenceSyncInFlightRef.current === 0 &&
-          pendingSyncCountRef.current === 0 &&
-          !syncInFlightRef.current
-        ) {
-          void refreshRemoteSnapshotFromCloud();
-        }
       });
-  }, [wallets, categories, userId, isStorageHydrated, isOnline, isRemoteReady, refreshRemoteSnapshotFromCloud]);
+  }, [wallets, categories, userId, isStorageHydrated, isOnline, isRemoteReady]);
 
   React.useEffect(() => {
     pendingSyncCountRef.current = pendingSyncCount;
 
-    if (pendingSyncCount === 0 && !syncInFlightRef.current) {
-      void refreshRemoteSnapshotFromCloud();
+    if (pendingSyncCount === 0 && latestRemoteSnapshotRef.current && !syncInFlightRef.current) {
+      applyRemoteSnapshot(latestRemoteSnapshotRef.current);
     }
-  }, [pendingSyncCount, refreshRemoteSnapshotFromCloud]);
+  }, [pendingSyncCount, applyRemoteSnapshot]);
 
   React.useEffect(() => {
     localStorage.setItem(THEME_STORAGE_KEY, theme);
